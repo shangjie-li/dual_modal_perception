@@ -40,8 +40,9 @@ image2_lock = threading.Lock()
 
 def estimate_by_monocular(mono, masks, classes, scores, boxes):
     objs = []
-    u, v = (boxes[:, 0] + boxes[:, 2]) / 2, boxes[:, 3]
     num = classes.shape[0] if classes is not None else 0
+    if num > 0:
+        u, v = (boxes[:, 0] + boxes[:, 2]) / 2, boxes[:, 3]
     
     for i in range(num):
         obj = Object()
@@ -51,8 +52,12 @@ def estimate_by_monocular(mono, masks, classes, scores, boxes):
         obj.box = boxes[i].copy() # copy for ndarray
         
         x, y, z = mono.uv_to_xyz(u[i], v[i])
-        obj.x0 = x
-        obj.y0 = z
+        obj.x0 = z
+        obj.y0 = -x
+        
+        obj.l = 2.0
+        obj.w = 2.0
+        obj.h = 2.0
         
         obj.color = BasicColor
         objs.append(obj)
@@ -186,7 +191,7 @@ def image1_callback(image):
         image1_frames.pop(0)
         image1_stamps.append(stamp)
         image1_frames.append(data)
-    image_lock1.release()
+    image1_lock.release()
 
 def image2_callback(image):
     global image2_stamps, image2_frames
@@ -202,7 +207,7 @@ def image2_callback(image):
         image2_frames.pop(0)
         image2_stamps.append(stamp)
         image2_frames.append(data)
-    image_lock2.release()
+    image2_lock.release()
 
 def fusion_callback(event):
     time_all_start = time.time()
@@ -222,7 +227,8 @@ def fusion_callback(event):
     image2_frame = image2_frames[-1].copy()
     image2_lock.release()
     
-    # current_image = current_image[:, :, ::-1] # to BGR
+    image1_frame = image1_frame[:, :, ::-1] # to BGR
+    image2_frame = image2_frame[:, :, ::-1] # to BGR
     current_image1 = image1_frame.copy()
     current_image2 = image2_frame.copy()
     
@@ -242,71 +248,113 @@ def fusion_callback(event):
             number = 0
     time_tracking = time.time() - time_tracking_start
     
+    if processing_mode == 'D':
+        objs = objs
+    elif processing_mode == 'DT':
+        objs = objs_tracked
+    
     # 可视化
     time_display_start = time.time()
     if display_image_raw:
-        win_image_raw = current_image1.copy()
+        win_image1_raw = current_image1.copy()
+        win_image2_raw = current_image2.copy()
     if display_image_segmented:
-        win_image_segmented = current_image1.copy()
+        win_image1_segmented = current_image1.copy()
+        win_image2_segmented = current_image2.copy()
         num = len(objs)
         for i in range(num):
             if objs[i].tracker_blind_update > 0:
                 continue
-            win_image_segmented = draw_segmentation_result(
-                win_image_segmented, objs[i].mask, objs[i].classname, objs[i].score,
+            win_image1_segmented = draw_segmentation_result(
+                win_image1_segmented, objs[i].mask, objs[i].classname, objs[i].score,
+                objs[i].box, BasicColor
+            )
+            win_image2_segmented = draw_segmentation_result(
+                win_image2_segmented, objs[i].mask, objs[i].classname, objs[i].score,
                 objs[i].box, BasicColor
             )
     if display_2d_modeling:
-        win_2d_modeling = np.ones((480, 640, 3), dtype=np.uint8) * 255
-        win_2d_modeling = draw_object_model_from_bev_view(
-            win_2d_modeling, objs, display_gate,
+        win_image1_2d_modeling = np.ones((480, 640, 3), dtype=np.uint8) * 255
+        win_image2_2d_modeling = np.ones((480, 640, 3), dtype=np.uint8) * 255
+        win_image1_2d_modeling = draw_object_model_from_bev_view(
+            win_image1_2d_modeling, objs, display_gate,
             center_alignment=False, axis=True, thickness=2
         )
-        win_2d_modeling = cv2.resize(win_2d_modeling, (win_w, win_h))
+        win_image2_2d_modeling = draw_object_model_from_bev_view(
+            win_image2_2d_modeling, objs, display_gate,
+            center_alignment=False, axis=True, thickness=2
+        )
+        win_image1_2d_modeling = cv2.resize(win_image1_2d_modeling, (win_w, win_h))
+        win_image2_2d_modeling = cv2.resize(win_image2_2d_modeling, (win_w, win_h))
     if display_3d_modeling:
-        win_3d_modeling = current_image1.copy()
-        win_3d_modeling = draw_object_model_from_main_view(
-            win_3d_modeling, objs, frame, display_frame,
+        win_image1_3d_modeling = current_image1.copy()
+        win_image2_3d_modeling = current_image2.copy()
+        win_image1_3d_modeling = draw_object_model_from_main_view(
+            win_image1_3d_modeling, objs, frame, display_frame,
+            display_obj_state, thickness=2
+        )
+        win_image2_3d_modeling = draw_object_model_from_main_view(
+            win_image2_3d_modeling, objs, frame, display_frame,
             display_obj_state, thickness=2
         )
     
     # 显示与保存
     if display_image_raw:
-        cv2.namedWindow("image_raw", cv2.WINDOW_NORMAL)
-        cv2.imshow("image_raw", win_image_raw)
-        v_image_raw.write(win_image_raw)
+        cv2.namedWindow("image1_raw", cv2.WINDOW_NORMAL)
+        cv2.imshow("image1_raw", win_image1_raw)
+        v_image1_raw.write(win_image1_raw)
+        cv2.namedWindow("image2_raw", cv2.WINDOW_NORMAL)
+        cv2.imshow("image2_raw", win_image2_raw)
+        v_image2_raw.write(win_image2_raw)
     if display_image_segmented:
-        cv2.namedWindow("image_segmented", cv2.WINDOW_NORMAL)
-        cv2.imshow("image_segmented", win_image_segmented)
-        v_image_segmented.write(win_image_segmented)
+        cv2.namedWindow("image1_segmented", cv2.WINDOW_NORMAL)
+        cv2.imshow("image1_segmented", win_image1_segmented)
+        v_image1_segmented.write(win_image1_segmented)
+        cv2.namedWindow("image2_segmented", cv2.WINDOW_NORMAL)
+        cv2.imshow("image2_segmented", win_image2_segmented)
+        v_image2_segmented.write(win_image2_segmented)
     if display_2d_modeling:
-        cv2.namedWindow("2d_modeling", cv2.WINDOW_NORMAL)
-        cv2.imshow("2d_modeling", win_2d_modeling)
-        v_2d_modeling.write(win_2d_modeling)
+        cv2.namedWindow("image1_2d_modeling", cv2.WINDOW_NORMAL)
+        cv2.imshow("image1_2d_modeling", win_image1_2d_modeling)
+        v_image1_2d_modeling.write(win_image1_2d_modeling)
+        cv2.namedWindow("image2_2d_modeling", cv2.WINDOW_NORMAL)
+        cv2.imshow("image2_2d_modeling", win_image2_2d_modeling)
+        v_image2_2d_modeling.write(win_image2_2d_modeling)
     if display_3d_modeling:
-        cv2.namedWindow("3d_modeling", cv2.WINDOW_NORMAL)
-        cv2.imshow("3d_modeling", win_3d_modeling)
-        v_3d_modeling.write(win_3d_modeling)
+        cv2.namedWindow("image1_3d_modeling", cv2.WINDOW_NORMAL)
+        cv2.imshow("image1_3d_modeling", win_image1_3d_modeling)
+        v_image1_3d_modeling.write(win_image1_3d_modeling)
+        cv2.namedWindow("image2_3d_modeling", cv2.WINDOW_NORMAL)
+        cv2.imshow("image2_3d_modeling", win_image2_3d_modeling)
+        v_image2_3d_modeling.write(win_image2_3d_modeling)
     
     # 显示窗口时按Esc键终止程序
     display = [display_image_raw, display_image_segmented,
         display_2d_modeling, display_3d_modeling].count(True) > 0
     if display and cv2.waitKey(1) == 27:
         if display_image_raw:
-            cv2.destroyWindow("image_raw")
-            v_image_raw.release()
+            cv2.destroyWindow("image1_raw")
+            cv2.destroyWindow("image2_raw")
+            v_image1_raw.release()
+            v_image2_raw.release()
             print("Save video of image_raw.")
         if display_image_segmented:
-            cv2.destroyWindow("image_segmented")
-            v_image_segmented.release()
+            cv2.destroyWindow("image1_segmented")
+            cv2.destroyWindow("image2_segmented")
+            v_image1_segmented.release()
+            v_image2_segmented.release()
             print("Save video of image_segmented.")
         if display_2d_modeling:
-            cv2.destroyWindow("2d_modeling")
-            v_2d_modeling.release()
+            cv2.destroyWindow("image1_2d_modeling")
+            cv2.destroyWindow("image2_2d_modeling")
+            v_image1_2d_modeling.release()
+            v_image2_2d_modeling.release()
             print("Save video of 2d_modeling.")
         if display_3d_modeling:
-            cv2.destroyWindow("3d_modeling")
-            v_3d_modeling.release()
+            cv2.destroyWindow("image1_3d_modeling")
+            cv2.destroyWindow("image2_3d_modeling")
+            v_image1_3d_modeling.release()
+            v_image2_3d_modeling.release()
             print("Save video of 3d_modeling.")
         print("\nReceived the shutdown signal.\n")
         rospy.signal_shutdown("Everything is over now.")
@@ -319,6 +367,7 @@ def fusion_callback(event):
     time_all = round(time.time() - time_all_start, 3)
     
     if print_time:
+        image_stamp = image1_stamp
         print("image_stamp          ", image_stamp)
         print("time of segmentation ", time_segmentation)
         print("time of tracking     ", time_tracking)
@@ -442,28 +491,48 @@ if __name__ == '__main__':
     display_frame = rospy.get_param("~display_frame")
     display_obj_state = rospy.get_param("~display_obj_state")
     
-    win_h = image1_frames[0].shape[0]
-    win_w = image1_frames[0].shape[1]
+    win_h1, win_w1 = image1_frames[0].shape[0], image1_frames[0].shape[1]
+    win_h2, win_w2 = image2_frames[0].shape[0], image2_frames[0].shape[1]
+    assert win_h1 == win_h2 and win_w1 == win_w2, \
+        '(win_h1, win_w1) should be the same as (win_h2, win_w2).'
+    win_h = win_h1
+    win_w = win_w1
     
     if display_image_raw:
-        v_path = 'image_raw.mp4'
+        v_path = 'image1_raw.mp4'
         v_format = cv2.VideoWriter_fourcc(*"mp4v")
-        v_image_raw = cv2.VideoWriter(v_path, v_format, frame_rate,
+        v_image1_raw = cv2.VideoWriter(v_path, v_format, frame_rate,
+            (win_w, win_h), True)
+        v_path = 'image2_raw.mp4'
+        v_format = cv2.VideoWriter_fourcc(*"mp4v")
+        v_image2_raw = cv2.VideoWriter(v_path, v_format, frame_rate,
             (win_w, win_h), True)
     if display_image_segmented:
-        v_path = 'image_segmented.mp4'
+        v_path = 'image1_segmented.mp4'
         v_format = cv2.VideoWriter_fourcc(*"mp4v")
-        v_image_segmented = cv2.VideoWriter(v_path, v_format, frame_rate,
+        v_image1_segmented = cv2.VideoWriter(v_path, v_format, frame_rate,
+            (win_w, win_h), True)
+        v_path = 'image2_segmented.mp4'
+        v_format = cv2.VideoWriter_fourcc(*"mp4v")
+        v_image2_segmented = cv2.VideoWriter(v_path, v_format, frame_rate,
             (win_w, win_h), True)
     if display_2d_modeling:
-        v_path = '2d_modeling.mp4'
+        v_path = 'image1_2d_modeling.mp4'
         v_format = cv2.VideoWriter_fourcc(*"mp4v")
-        v_2d_modeling = cv2.VideoWriter(v_path, v_format, frame_rate,
+        v_image1_2d_modeling = cv2.VideoWriter(v_path, v_format, frame_rate,
+            (win_w, win_h), True)
+        v_path = 'image2_2d_modeling.mp4'
+        v_format = cv2.VideoWriter_fourcc(*"mp4v")
+        v_image2_2d_modeling = cv2.VideoWriter(v_path, v_format, frame_rate,
             (win_w, win_h), True)
     if display_3d_modeling:
-        v_path = '3d_modeling.mp4'
+        v_path = 'image1_3d_modeling.mp4'
         v_format = cv2.VideoWriter_fourcc(*"mp4v")
-        v_3d_modeling = cv2.VideoWriter(v_path, v_format, frame_rate,
+        v_image1_3d_modeling = cv2.VideoWriter(v_path, v_format, frame_rate,
+            (win_w, win_h), True)
+        v_path = 'image2_3d_modeling.mp4'
+        v_format = cv2.VideoWriter_fourcc(*"mp4v")
+        v_image2_3d_modeling = cv2.VideoWriter(v_path, v_format, frame_rate,
             (win_w, win_h), True)
     
     # 启动数据融合线程

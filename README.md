@@ -27,7 +27,7 @@ ROS package for dual modal perception (rgbt)
    cd ..
    catkin_make
    ```
- - 下载模型文件[yolact_resnet50_54_800000.pth](https://drive.google.com/file/d/1yp7ZbbDwvMiFJEq4ptVKTYTI2VeRDXl0/view?usp=sharing)，并保存至目录`dual_modal_perception/modules/dual_modal_yolact/weights`
+ - 准备模型文件`yolact_resnet50_178_100000.pth`，并保存至目录`dual_modal_perception/modules/dual_modal_yolact/weights`
 
 ## 参数配置
  - 编写相机标定参数`fusion_perception/conf/calibration_image.yaml`
@@ -38,9 +38,9 @@ ROS package for dual modal perception (rgbt)
       rows: 3
       cols: 4
       dt: d
-      data: [461, 0, 333, 0, 0, 463, 184, 0, 0, 0, 1, 0]
-   Height: 4.0
-   DepressionAngle: 15.0
+      data: [859, 0, 339, 0, 0, 864, 212, 0, 0, 0, 1, 0]
+   Height: 2.0
+   DepressionAngle: 0.0
    ```
  - 在上述参数文件中
    ```

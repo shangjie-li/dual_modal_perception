@@ -49,15 +49,15 @@ def draw_object_info(img, classname, number, xref, yref, vx, vy, uv_1, uv_2, col
         cv2.rectangle(img, (u2, v2), (u2 + text_w_lo, v2 + text_h + 4), color, -1)
         cv2.putText(img, text_lo, (u2, v2 + text_h + 1), f_face, f_scale, white, f_thickness, cv2.LINE_AA)
         
-        text_ve = '(%.1fm/s, %.1fm/s)' % (vx, vy)
-        text_w_ve, _ = cv2.getTextSize(text_ve, f_face, f_scale, f_thickness)[0]
-        cv2.rectangle(img, (u2, v2 + text_h + 4), (u2 + text_w_ve, v2 + 2 * text_h + 8), color, -1)
-        cv2.putText(img, text_ve, (u2, v2 + 2 * text_h + 5), f_face, f_scale, white, f_thickness, cv2.LINE_AA)
+        #~ text_ve = '(%.1fm/s, %.1fm/s)' % (vx, vy)
+        #~ text_w_ve, _ = cv2.getTextSize(text_ve, f_face, f_scale, f_thickness)[0]
+        #~ cv2.rectangle(img, (u2, v2 + text_h + 4), (u2 + text_w_ve, v2 + 2 * text_h + 8), color, -1)
+        #~ cv2.putText(img, text_ve, (u2, v2 + 2 * text_h + 5), f_face, f_scale, white, f_thickness, cv2.LINE_AA)
         
-        text_sc = '(%.1fm, %.1fm, %.1fm, %.1frad)' % (l, w, h, phi)
-        text_w_sc, _ = cv2.getTextSize(text_sc, f_face, f_scale, f_thickness)[0]
-        cv2.rectangle(img, (u2, v2 + 2 * text_h + 8), (u2 + text_w_sc, v2 + 3 * text_h + 12), color, -1)
-        cv2.putText(img, text_sc, (u2, v2 + 3 * text_h + 9), f_face, f_scale, white, f_thickness, cv2.LINE_AA)
+        #~ text_sc = '(%.1fm, %.1fm, %.1fm, %.1frad)' % (l, w, h, phi)
+        #~ text_w_sc, _ = cv2.getTextSize(text_sc, f_face, f_scale, f_thickness)[0]
+        #~ cv2.rectangle(img, (u2, v2 + 2 * text_h + 8), (u2 + text_w_sc, v2 + 3 * text_h + 12), color, -1)
+        #~ cv2.putText(img, text_sc, (u2, v2 + 3 * text_h + 9), f_face, f_scale, white, f_thickness, cv2.LINE_AA)
     
     return img
 
@@ -97,6 +97,43 @@ def draw_object_model_from_main_view(img, objs, frame, display_frame=True,
     red = (0, 0, 255)
     if display_frame:
         cv2.putText(img, str(frame), (20, 40), f_face, f_scale, red, f_thickness, cv2.LINE_AA)
+    
+    return img
+
+def draw_point_clouds_from_bev_view(img, xs, ys,
+    center_alignment=True, color=(96, 96, 96), radius=1):
+    # 功能：在图像上绘制点云
+    # 输入：img <class 'numpy.ndarray'> (frame_height, frame_width, 3)
+    #      xs <class 'numpy.ndarray'> (n,) 代表X坐标
+    #      ys <class 'numpy.ndarray'> (n,) 代表Y坐标
+    # 输出：img <class 'numpy.ndarray'> (frame_height, frame_width, 3)
+    
+    num = xs.shape[0]
+    if num == 0:
+        return img
+    
+    xs = (xs * 10).astype(int)
+    ys = (- ys * 10).astype(int)
+    
+    height, width = img.shape[0], img.shape[1]
+    if center_alignment:
+        xst, yst = transform_2d_point_clouds(xs, ys, 0, width / 2, height / 2)
+    else:
+        xst, yst = transform_2d_point_clouds(xs, ys, 0, 0, height / 2)
+    
+    if radius == 1:
+        color = np.array([color[0], color[1], color[2]])
+        idxs = (xst >= 0) & (xst < width) & (yst >= 0) & (yst < height)
+        xst, yst = xst[idxs], yst[idxs]
+        
+        num = xst.shape[0]
+        for pt in range(num):
+            img[int(yst[pt]), int(xst[pt])] = color
+            
+    else:
+        num = xst.shape[0]
+        for pt in range(num):
+            cv2.circle(img, (int(xst[pt]), int(yst[pt])), radius, color, thickness=-1)
     
     return img
 

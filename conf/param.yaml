@@ -4,11 +4,11 @@ dt:
   record_time:                        True
   record_objects_info:                True
 
-  sub_image1_topic:                   /usb_cam/image_rgb
-  sub_image2_topic:                   /usb_cam/image_t
+  sub_image1_topic:                   /image1
+  sub_image2_topic:                   /image2
   calibration_image_file:             calibration_image.yaml
 
-  display_image_raw:                  True
+  display_image_raw:                  False
   display_image_segmented:            True
   
   display_2d_modeling:                True
@@ -18,7 +18,7 @@ dt:
   display_frame:                      True
   display_obj_state:                  True
   
-  processing_mode: DT # D - detection, DT - detection and tracking
+  processing_mode: D # D - detection, DT - detection and tracking
   
   blind_update_limit:                 0
   frame_rate:                         10

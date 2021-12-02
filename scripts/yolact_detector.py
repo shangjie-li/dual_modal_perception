@@ -1,5 +1,7 @@
 # -*- coding: UTF-8 -*-
 
+import matplotlib.pyplot as plt # For WARNING: QApplication was not created in the main() thread.
+
 import os
 import sys
 cwd = os.getcwd()
@@ -22,11 +24,11 @@ import torch
 import torch.backends.cudnn as cudnn
 
 from yolact import Yolact
-from utils.augmentations import FastBaseTransform
 from utils import timer
 from utils.functions import SavePath
 from layers.output_utils import postprocess
 from data import cfg, set_cfg
+from data import MEANS1, MEANS2, STD1, STD2
 
 def create_random_color():
     # 功能：产生随机RGB颜色
@@ -103,7 +105,7 @@ def draw_segmentation_result(img, mask, classname, score, box, color):
     return img
 
 class YolactDetector():
-    def __init__(self, model='/weights/yolact_resnet50_54_800000.pth'):
+    def __init__(self, model='/weights/yolact_resnet50_178_100000.pth'):
         # 功能：初始化YolactDetector对象
         # 输入：model <class 'str'> 权重文件的路径
         
@@ -116,7 +118,7 @@ class YolactDetector():
             torch.set_default_tensor_type('torch.FloatTensor')
             
         # Yolact参数配置
-        trained_model = cwd[:idx] + '/modules/yolact' + model
+        trained_model = cwd[:idx] + '/modules/dual_modal_yolact' + model
         pth = SavePath.from_str(trained_model)
         config = pth.model_name + '_config'
         set_cfg(config)
@@ -133,7 +135,7 @@ class YolactDetector():
         cfg.mask_proto_debug = False
         print('  Done.\n')
         
-    def run(self, img, items=['car', 'person'], score_thresholds=[0.65, 0.15], top_ks=[10, 10]):
+    def run(self, img1, img2, items=['pedestrian', 'car'], score_thresholds=[0.15, 0.65], top_ks=[10, 10]):
         # 功能：运行Yolact网络以检测图像中的目标
         # 输入：img <class 'numpy.ndarray'> (frame_height, frame_width, 3)
         #      items <class 'list'> 保留的目标类别
@@ -145,13 +147,30 @@ class YolactDetector():
         #      boxes <class 'numpy.ndarray'> (N, 4) N为目标数量
         
         # 检测图像中的目标
-        frame = torch.from_numpy(img).cuda().float()
-        batch = FastBaseTransform()(frame.unsqueeze(0))
+        h1, w1, _ = img1.shape
+        h2, w2, _ = img2.shape
+        assert h1 == h2 and w1 == w2, '(h1, w1) should be the same as (h2, w2).'
+        
+        img1 = img1.astype(np.float32)
+        img1 = cv2.resize(img1, (cfg.max_size, cfg.max_size))
+        img1 = (img1 - MEANS1) / STD1
+        img1 = img1[:, :, ::-1] # To RGB
+        
+        img2 = img2.astype(np.float32)
+        img2 = cv2.resize(img2, (cfg.max_size, cfg.max_size))
+        img2 = (img2 - MEANS2) / STD2
+        img2 = img2[:, :, ::-1] # To RGB
+        
+        img1 = torch.from_numpy(img1.copy()).permute(2, 0, 1) # [3, h, w] in RGB
+        img2 = torch.from_numpy(img2.copy()).permute(2, 0, 1) # [3, h, w] in RGB
+        
+        img_tensor = torch.cat([img1, img2], dim=0)
+        batch = img_tensor.unsqueeze(0).cuda().float()
         preds = self.net(batch)
         
         # 建立每个目标的掩膜masks、类别classes、置信度scores、边界框boxes的一一对应关系
         with torch.no_grad():
-            h, w, _ = frame.shape
+            h, w = h1, w1
             
             with timer.env('Postprocess'):
                 save = cfg.rescore_bbox
@@ -197,10 +216,11 @@ class YolactDetector():
         return masks, classes, scores, boxes
         
 if __name__ == '__main__':
-    img = cv2.imread('/home/lishangjie/detection-and-tracking_doc/result/2021-03-15/0.jpeg')
+    img1 = cv2.imread('/home/lishangjie/data/KITTI/kitti_dual/images/000008.png')
+    img2 = cv2.imread('/home/lishangjie/data/KITTI/kitti_dual/lidar_ddm_jet/000008.png')
     
     detector = YolactDetector()
-    masks, classes, scores, boxes = detector.run(img)
+    masks, classes, scores, boxes = detector.run(img1, img2)
     
     print('masks', type(masks), masks.shape)
     print('classes', type(classes), classes.shape)
@@ -213,12 +233,16 @@ if __name__ == '__main__':
         score = float(scores[i])
         box = boxes[i]
         color = create_random_color()
-        img = draw_segmentation_result(img, mask, classname, score, box, color)
+        img1 = draw_segmentation_result(img1, mask, classname, score, box, color)
+        img2 = draw_segmentation_result(img2, mask, classname, score, box, color)
         
-    cv2.namedWindow("main", cv2.WINDOW_NORMAL)
-    cv2.imshow("main", img)
+    cv2.namedWindow("img1", cv2.WINDOW_NORMAL)
+    cv2.namedWindow("img2", cv2.WINDOW_NORMAL)
+    cv2.imshow("img1", img1)
+    cv2.imshow("img2", img2)
     
     # 显示图像时按Esc键终止程序
     if cv2.waitKey(0) == 27:
-        cv2.destroyWindow("main")
+        cv2.destroyWindow("img1")
+        cv2.destroyWindow("img2")
 
