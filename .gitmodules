@@ -1,0 +1,3 @@
+[submodule "modules/dual_modal_yolact"]
+	path = modules/dual_modal_yolact
+	url = git@github.com:shangjie-li/dual_modal_yolact.git
