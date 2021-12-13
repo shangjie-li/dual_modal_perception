@@ -27,7 +27,8 @@ ROS package for dual modal perception (rgbt)
    cd ..
    catkin_make
    ```
- - 准备模型文件`yolact_resnet50_178_100000.pth`，并保存至目录`dual_modal_perception/modules/dual_modal_yolact/weights`
+ - 准备双模态检测的模型文件，并保存至目录`dual_modal_perception/modules/dual_modal_yolact/weights`
+ - 准备单模态检测的模型文件，并保存至目录`dual_modal_perception/modules/yolact/weights`
 
 ## 参数配置
  - 编写相机标定参数`fusion_perception/conf/calibration_image.yaml`
@@ -58,8 +59,8 @@ ROS package for dual modal perception (rgbt)
    record_time:                        True
    record_objects_info:                True
   
-   sub_image1_topic:                   /usb_cam/image_rgb
-   sub_image2_topic:                   /usb_cam/image_t
+   sub_image1_topic:                   /image1 # RGB image
+   sub_image2_topic:                   /image2 # Thermal image
    calibration_image_file:             calibration_image.yaml
   
    display_image_raw:                  False
@@ -73,12 +74,14 @@ ROS package for dual modal perception (rgbt)
    display_obj_state:                  True
   
    processing_mode: DT # D - detection, DT - detection and tracking
+   modality: RGB # RGB - RGB image, T - Thermal image, RGBT - Both
   
    blind_update_limit:                 0
    frame_rate:                         10
    max_id:                             10000
    ```
-    - `sub_image_topic`指明订阅的图像话题。
+    - `sub_image1_topic`指明订阅的可见光图像话题。
+    - `sub_image2_topic`指明订阅的红外图像话题。
 
 ## 运行
  - 加载参数文件至ROS参数服务器

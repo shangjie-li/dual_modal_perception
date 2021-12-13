@@ -37,7 +37,12 @@ class MonoEstimator():
         h = self.height
         t = self.depression
         
-        z = (h * fy * cos(t) - h * (v - v0) * sin(t)) / (fy * sin(t) + (v - v0) * cos(t))
+        denominator = fy * sin(t) + (v - v0) * cos(t)
+        if denominator != 0:
+            z = (h * fy * cos(t) - h * (v - v0) * sin(t)) / denominator
+            if z > 1000: z = 1000
+        else:
+            z = 1000
         x = (z * (u - u0) * cos(t) + h * (u - u0) * sin(t)) / fx
         y = h
         

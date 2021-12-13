@@ -1,9 +1,5 @@
 # -*- coding: UTF-8 -*-
 
-Items = ['pedestrian', 'cyclist', 'car', 'bus', 'truck', 'traffic_light', 'traffic_sign']
-Confs = [0.20, 0.20, 0.60, 0.40, 0.40, 0.20, 0.20]
-Topks = [10, 10, 10, 10, 10, 10, 10]
-
 BasicColor = (158, 158, 158)
 
 class Object():

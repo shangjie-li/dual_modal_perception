@@ -19,15 +19,10 @@ except ImportError:
     sys.path.remove('/opt/ros/kinetic/lib/python2.7/dist-packages')
     import cv2
     
-from config import Confs
-from config import Topks
 from config import Object
-from config import Items
 from config import BasicColor
 
 from mono_estimator import MonoEstimator
-from yolact_detector import YolactDetector
-from yolact_detector import draw_segmentation_result
 from kalman_filter import KalmanFilter4D
 
 from visualization import get_stamp
@@ -45,22 +40,23 @@ def estimate_by_monocular(mono, masks, classes, scores, boxes):
         u, v = (boxes[:, 0] + boxes[:, 2]) / 2, boxes[:, 3]
     
     for i in range(num):
-        obj = Object()
-        obj.mask = masks[i].clone() # clone for tensor
-        obj.classname = classes[i]
-        obj.score = scores[i]
-        obj.box = boxes[i].copy() # copy for ndarray
-        
-        x, y, z = mono.uv_to_xyz(u[i], v[i])
-        obj.x0 = z
-        obj.y0 = -x
-        
-        obj.l = 2.0
-        obj.w = 2.0
-        obj.h = 2.0
-        
-        obj.color = BasicColor
-        objs.append(obj)
+        if v[i] > win_h / 2:
+            obj = Object()
+            obj.mask = masks[i].clone() # clone for tensor
+            obj.classname = classes[i]
+            obj.score = scores[i]
+            obj.box = boxes[i].copy() # copy for ndarray
+            
+            x, y, z = mono.uv_to_xyz(u[i], v[i])
+            obj.x0 = z
+            obj.y0 = -x
+            
+            obj.l = 2.0
+            obj.w = 2.0
+            obj.h = 2.0
+            
+            obj.color = BasicColor
+            objs.append(obj)
         
     return objs
 
@@ -234,8 +230,15 @@ def fusion_callback(event):
     
     # 实例分割与视觉估计
     time_segmentation_start = time.time()
-    masks, classes, scores, boxes = detector.run(image1_frame, image2_frame, items=Items,
-        score_thresholds=Confs, top_ks=Topks)
+    if modality == 'RGB':
+        masks, classes, scores, boxes = detector.run(image1_frame)
+    elif modality == 'T':
+        masks, classes, scores, boxes = detector.run(image2_frame)
+    elif modality == 'RGBT':
+        masks, classes, scores, boxes = detector.run(image1_frame, image2_frame)
+    else:
+        raise ValueError("modality must be 'RGB', 'T' or 'RGBT'.")
+    
     objs = estimate_by_monocular(mono, masks, classes, scores, boxes)
     time_segmentation = time.time() - time_segmentation_start
     
@@ -252,6 +255,8 @@ def fusion_callback(event):
         objs = objs
     elif processing_mode == 'DT':
         objs = objs_tracked
+    else:
+        raise ValueError("processing_mode must be 'D' or 'DT'.")
     
     # 可视化
     time_display_start = time.time()
@@ -452,7 +457,18 @@ if __name__ == '__main__':
     mono = MonoEstimator(f_path, print_info=True)
     
     # 初始化YolactDetector
-    detector = YolactDetector()
+    modality = rospy.get_param("~modality")
+    if modality == 'RGB':
+        from yolact_detector import YolactDetector, draw_segmentation_result
+        detector = YolactDetector()
+    elif modality == 'T':
+        from yolact_detector import YolactDetector, draw_segmentation_result
+        detector = YolactDetector()
+    elif modality == 'RGBT':
+        from dual_modal_yolact_detector import YolactDetector, draw_segmentation_result
+        detector = YolactDetector()
+    else:
+        raise ValueError("modality must be 'RGB', 'T' or 'RGBT'.")
     
     # 准备图像序列
     print('Waiting for topic...')
@@ -542,7 +558,7 @@ if __name__ == '__main__':
     elif processing_mode == 'DT':
         display_gate = display_gate
     else:
-        raise ValueError("processing_mode must be 'D' of 'DT'.")
+        raise ValueError("processing_mode must be 'D' or 'DT'.")
         
     rospy.Timer(rospy.Duration(1 / frame_rate), fusion_callback)
     

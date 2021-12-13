@@ -38,7 +38,8 @@ def draw_object_info(img, classname, number, xref, yref, vx, vy, uv_1, uv_2, col
     f_thickness = 1
     white = (255, 255, 255)
     
-    text_str = classname + ' ' + str(number)
+    #~ text_str = classname + ' ' + str(number)
+    text_str = classname
     text_w, text_h = cv2.getTextSize(text_str, f_face, f_scale, f_thickness)[0]
     cv2.rectangle(img, (u1, v1), (u1 + text_w, v1 - text_h - 4), color, -1)
     cv2.putText(img, text_str, (u1, v1 - 3), f_face, f_scale, white, f_thickness, cv2.LINE_AA)
