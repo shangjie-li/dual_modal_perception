@@ -4,8 +4,8 @@ dt:
   record_time:                        True
   record_objects_info:                True
 
-  sub_image1_topic:                   /image1 # RGB image
-  sub_image2_topic:                   /image2 # Thermal image
+  sub_image1_topic:                   /pub_rgb # RGB image
+  sub_image2_topic:                   /pub_t # Thermal image
   calibration_image_file:             calibration_image.yaml
 
   display_image_raw:                  False

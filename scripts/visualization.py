@@ -31,16 +31,24 @@ def draw_object_info(img, classname, number, xref, yref, vx, vy, uv_1, uv_2, col
     #      color <class 'tuple'> RGB颜色
     # 输出：img <class 'numpy.ndarray'> (frame_height, frame_width, 3)
     
+    win_h, win_w, _ = img.shape
     u1, v1, u2, v2 = int(uv_1[0, 0]), int(uv_1[0, 1]), int(uv_2[0, 0]), int(uv_2[0, 1])
     
     f_face = cv2.FONT_HERSHEY_DUPLEX
-    f_scale = 1.0
+    f_scale = 0.5
     f_thickness = 1
     white = (255, 255, 255)
     
     #~ text_str = classname + ' ' + str(number)
     text_str = classname
     text_w, text_h = cv2.getTextSize(text_str, f_face, f_scale, f_thickness)[0]
+    
+    if v1 - text_h - 4 < 0:
+        v1 = text_h + 4
+    
+    if v2 + text_h + 4 > win_h:
+        v2 = win_h - text_h - 4
+    
     cv2.rectangle(img, (u1, v1), (u1 + text_w, v1 - text_h - 4), color, -1)
     cv2.putText(img, text_str, (u1, v1 - 3), f_face, f_scale, white, f_thickness, cv2.LINE_AA)
     

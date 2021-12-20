@@ -179,7 +179,7 @@ def image1_callback(image):
     data = np.frombuffer(image.data, dtype=np.uint8).reshape(image.height, image.width, -1)
     
     image1_lock.acquire()
-    if len(image1_stamps) < 30:
+    if len(image1_stamps) < 10:
         image1_stamps.append(stamp)
         image1_frames.append(data)
     else:
@@ -195,7 +195,7 @@ def image2_callback(image):
     data = np.frombuffer(image.data, dtype=np.uint8).reshape(image.height, image.width, -1)
     
     image2_lock.acquire()
-    if len(image2_stamps) < 30:
+    if len(image2_stamps) < 10:
         image2_stamps.append(stamp)
         image2_frames.append(data)
     else:
@@ -223,8 +223,9 @@ def fusion_callback(event):
     image2_frame = image2_frames[-1].copy()
     image2_lock.release()
     
-    image1_frame = image1_frame[:, :, ::-1] # to BGR
-    image2_frame = image2_frame[:, :, ::-1] # to BGR
+    if developer_mode:
+        image1_frame = image1_frame[:, :, ::-1] # to BGR
+        image2_frame = image2_frame[:, :, ::-1] # to BGR
     current_image1 = image1_frame.copy()
     current_image2 = image2_frame.copy()
     
@@ -307,31 +308,31 @@ def fusion_callback(event):
     if display_image_raw:
         cv2.namedWindow("image1_raw", cv2.WINDOW_NORMAL)
         cv2.imshow("image1_raw", win_image1_raw)
-        v_image1_raw.write(win_image1_raw)
+        if developer_mode: v_image1_raw.write(win_image1_raw)
         cv2.namedWindow("image2_raw", cv2.WINDOW_NORMAL)
         cv2.imshow("image2_raw", win_image2_raw)
-        v_image2_raw.write(win_image2_raw)
+        if developer_mode: v_image2_raw.write(win_image2_raw)
     if display_image_segmented:
         cv2.namedWindow("image1_segmented", cv2.WINDOW_NORMAL)
         cv2.imshow("image1_segmented", win_image1_segmented)
-        v_image1_segmented.write(win_image1_segmented)
+        if developer_mode: v_image1_segmented.write(win_image1_segmented)
         cv2.namedWindow("image2_segmented", cv2.WINDOW_NORMAL)
         cv2.imshow("image2_segmented", win_image2_segmented)
-        v_image2_segmented.write(win_image2_segmented)
+        if developer_mode: v_image2_segmented.write(win_image2_segmented)
     if display_2d_modeling:
         cv2.namedWindow("image1_2d_modeling", cv2.WINDOW_NORMAL)
         cv2.imshow("image1_2d_modeling", win_image1_2d_modeling)
-        v_image1_2d_modeling.write(win_image1_2d_modeling)
+        if developer_mode: v_image1_2d_modeling.write(win_image1_2d_modeling)
         cv2.namedWindow("image2_2d_modeling", cv2.WINDOW_NORMAL)
         cv2.imshow("image2_2d_modeling", win_image2_2d_modeling)
-        v_image2_2d_modeling.write(win_image2_2d_modeling)
+        if developer_mode: v_image2_2d_modeling.write(win_image2_2d_modeling)
     if display_3d_modeling:
         cv2.namedWindow("image1_3d_modeling", cv2.WINDOW_NORMAL)
         cv2.imshow("image1_3d_modeling", win_image1_3d_modeling)
-        v_image1_3d_modeling.write(win_image1_3d_modeling)
+        if developer_mode: v_image1_3d_modeling.write(win_image1_3d_modeling)
         cv2.namedWindow("image2_3d_modeling", cv2.WINDOW_NORMAL)
         cv2.imshow("image2_3d_modeling", win_image2_3d_modeling)
-        v_image2_3d_modeling.write(win_image2_3d_modeling)
+        if developer_mode: v_image2_3d_modeling.write(win_image2_3d_modeling)
     
     # 显示窗口时按Esc键终止程序
     display = [display_image_raw, display_image_segmented,
@@ -340,26 +341,30 @@ def fusion_callback(event):
         if display_image_raw:
             cv2.destroyWindow("image1_raw")
             cv2.destroyWindow("image2_raw")
-            v_image1_raw.release()
-            v_image2_raw.release()
+            if developer_mode:
+                v_image1_raw.release()
+                v_image2_raw.release()
             print("Save video of image_raw.")
         if display_image_segmented:
             cv2.destroyWindow("image1_segmented")
             cv2.destroyWindow("image2_segmented")
-            v_image1_segmented.release()
-            v_image2_segmented.release()
+            if developer_mode:
+                v_image1_segmented.release()
+                v_image2_segmented.release()
             print("Save video of image_segmented.")
         if display_2d_modeling:
             cv2.destroyWindow("image1_2d_modeling")
             cv2.destroyWindow("image2_2d_modeling")
-            v_image1_2d_modeling.release()
-            v_image2_2d_modeling.release()
+            if developer_mode:
+                v_image1_2d_modeling.release()
+                v_image2_2d_modeling.release()
             print("Save video of 2d_modeling.")
         if display_3d_modeling:
             cv2.destroyWindow("image1_3d_modeling")
             cv2.destroyWindow("image2_3d_modeling")
-            v_image1_3d_modeling.release()
-            v_image2_3d_modeling.release()
+            if developer_mode:
+                v_image1_3d_modeling.release()
+                v_image2_3d_modeling.release()
             print("Save video of 3d_modeling.")
         print("\nReceived the shutdown signal.\n")
         rospy.signal_shutdown("Everything is over now.")
@@ -422,6 +427,9 @@ if __name__ == '__main__':
     # 初始化节点
     rospy.init_node("dt")
     
+    # 开发者模式
+    developer_mode = '/home/lishangjie' in os.getcwd()
+    
     # 记录耗时
     print_time = rospy.get_param("~print_time")
     record_time = rospy.get_param("~record_time")
@@ -478,7 +486,7 @@ if __name__ == '__main__':
         buff_size=52428800)
     rospy.Subscriber(sub_image2_topic, Image, image2_callback, queue_size=1,
         buff_size=52428800)
-    while len(image1_stamps) < 30 or len(image2_stamps) < 30:
+    while len(image1_stamps) < 10 or len(image2_stamps) < 10:
         time.sleep(1)
         print('Waiting for topic %s and %s...' % (sub_image1_topic, sub_image2_topic))
     
@@ -514,7 +522,7 @@ if __name__ == '__main__':
     win_h = win_h1
     win_w = win_w1
     
-    if display_image_raw:
+    if display_image_raw and developer_mode:
         v_path = 'image1_raw.mp4'
         v_format = cv2.VideoWriter_fourcc(*"mp4v")
         v_image1_raw = cv2.VideoWriter(v_path, v_format, frame_rate,
@@ -523,7 +531,7 @@ if __name__ == '__main__':
         v_format = cv2.VideoWriter_fourcc(*"mp4v")
         v_image2_raw = cv2.VideoWriter(v_path, v_format, frame_rate,
             (win_w, win_h), True)
-    if display_image_segmented:
+    if display_image_segmented and developer_mode:
         v_path = 'image1_segmented.mp4'
         v_format = cv2.VideoWriter_fourcc(*"mp4v")
         v_image1_segmented = cv2.VideoWriter(v_path, v_format, frame_rate,
@@ -532,7 +540,7 @@ if __name__ == '__main__':
         v_format = cv2.VideoWriter_fourcc(*"mp4v")
         v_image2_segmented = cv2.VideoWriter(v_path, v_format, frame_rate,
             (win_w, win_h), True)
-    if display_2d_modeling:
+    if display_2d_modeling and developer_mode:
         v_path = 'image1_2d_modeling.mp4'
         v_format = cv2.VideoWriter_fourcc(*"mp4v")
         v_image1_2d_modeling = cv2.VideoWriter(v_path, v_format, frame_rate,
@@ -541,7 +549,7 @@ if __name__ == '__main__':
         v_format = cv2.VideoWriter_fourcc(*"mp4v")
         v_image2_2d_modeling = cv2.VideoWriter(v_path, v_format, frame_rate,
             (win_w, win_h), True)
-    if display_3d_modeling:
+    if display_3d_modeling and developer_mode:
         v_path = 'image1_3d_modeling.mp4'
         v_format = cv2.VideoWriter_fourcc(*"mp4v")
         v_image1_3d_modeling = cv2.VideoWriter(v_path, v_format, frame_rate,
