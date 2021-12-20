@@ -462,7 +462,7 @@ if __name__ == '__main__':
         from yolact_detector import YolactDetector, draw_segmentation_result
         detector = YolactDetector()
     elif modality == 'T':
-        from yolact_detector import YolactDetector, draw_segmentation_result
+        from yolact_test_detector import YolactDetector, draw_segmentation_result
         detector = YolactDetector()
     elif modality == 'RGBT':
         from dual_modal_yolact_detector import YolactDetector, draw_segmentation_result

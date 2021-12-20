@@ -4,3 +4,6 @@
 [submodule "modules/yolact"]
 	path = modules/yolact
 	url = git@github.com:shangjie-li/yolact.git
+[submodule "modules/yolact-test"]
+	path = modules/yolact-test
+	url = git@github.com:shangjie-li/yolact-test.git
