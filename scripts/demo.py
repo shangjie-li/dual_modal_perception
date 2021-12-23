@@ -205,35 +205,6 @@ def image2_callback(image):
         image2_frames.append(data)
     image2_lock.release()
 
-def do_tif_fusion(p1, p2, median_blur_value=3, mean_blur_value=35):
-    p1_b = cv2.blur(p1, (mean_blur_value, mean_blur_value)).astype(np.float)
-    p2_b = cv2.blur(p2, (mean_blur_value, mean_blur_value)).astype(np.float)
-    p1_d = p1.astype(np.float) - p1_b
-    p2_d = p2.astype(np.float) - p2_b
-
-    p1_after_medianblur = cv2.medianBlur(p1, median_blur_value).astype(np.float)
-    p2_after_medianblur = cv2.medianBlur(p2, median_blur_value).astype(np.float)
-    p1_subtract_from_median_mean = p1_after_medianblur - p1_b + 0.01
-    p2_subtract_from_median_mean = p2_after_medianblur - p2_b + 0.01
-
-    m1 = p1_subtract_from_median_mean[:, :, 0]
-    m2 = p1_subtract_from_median_mean[:, :, 1]
-    m3 = p1_subtract_from_median_mean[:, :, 2]
-    delta1 = m1 * m1 + m2 * m2 + m3 * m3
-    
-    m1 = p2_subtract_from_median_mean[:, :, 0]
-    delta2 = abs(m1)
-
-    delta_total = delta1 + delta2
-    
-    psi_1 = delta1 / delta_total
-    psi_2 = delta2 / delta_total
-    psi1 = psi_1[:, :, None].repeat(3, axis=2)
-    psi2 = psi_2[:, :, None].repeat(3, axis=2)
-
-    p = 0.5 * (p1_b + p2_b) + psi1 * p1_d + psi2 * p2_d
-    return p
-
 def fusion_callback(event):
     time_all_start = time.time()
     global objs_tracked, objs_temp, number, frame
@@ -332,17 +303,16 @@ def fusion_callback(event):
             win_image2_3d_modeling, objs, frame, display_frame,
             display_obj_state, thickness=2
         )
-    if display_tif_fusion:
-        win_tif_fusion = np.ones((win_h, win_w * 3, 3), dtype=np.uint8) * 255
-        win_tif_fusion[:, :win_w] = current_image1.copy()
-        win_tif_fusion[:, win_w * 2:] = current_image2.copy()
-        
-        image_tif = do_tif_fusion(image1_frame, image2_frame)
-        image_tif = draw_object_model_from_main_view(
-            image_tif, objs, frame, display_frame,
+    if display_vi_fusion:
+        win_vi_fusion = np.ones((win_h, win_w * 3, 3), dtype=np.uint8) * 255
+        win_vi_fusion[:, :win_w] = current_image1.copy()
+        win_vi_fusion[:, win_w * 2:] = current_image2.copy()
+        image_vi = vi.fusion(arr_visible=image1_frame, arr_infrared=image2_frame).clip(0.0, 255.0)
+        image_vi = draw_object_model_from_main_view(
+            image_vi, objs, frame, display_frame,
             display_obj_state, thickness=2
         )
-        win_tif_fusion[:, win_w:win_w * 2] = image_tif
+        win_vi_fusion[:, win_w:win_w * 2] = image_vi
     
     # 显示与保存
     if display_image_raw:
@@ -373,14 +343,14 @@ def fusion_callback(event):
         cv2.namedWindow("image2_3d_modeling", cv2.WINDOW_NORMAL)
         cv2.imshow("image2_3d_modeling", win_image2_3d_modeling)
         if developer_mode: v_image2_3d_modeling.write(win_image2_3d_modeling)
-    if display_tif_fusion:
-        cv2.namedWindow("tif_fusion", cv2.WINDOW_NORMAL)
-        cv2.imshow("tif_fusion", win_tif_fusion)
-        if developer_mode: v_tif_fusion.write(win_tif_fusion)
+    if display_vi_fusion:
+        cv2.namedWindow("vi_fusion", cv2.WINDOW_NORMAL)
+        cv2.imshow("vi_fusion", win_vi_fusion)
+        if developer_mode: v_vi_fusion.write(win_vi_fusion)
     
     # 显示窗口时按Esc键终止程序
     display = [display_image_raw, display_image_segmented,
-        display_2d_modeling, display_3d_modeling].count(True) > 0
+        display_2d_modeling, display_3d_modeling, display_vi_fusion].count(True) > 0
     if display and cv2.waitKey(1) == 27:
         if display_image_raw:
             cv2.destroyWindow("image1_raw")
@@ -410,11 +380,11 @@ def fusion_callback(event):
                 v_image1_3d_modeling.release()
                 v_image2_3d_modeling.release()
             print("Save video of 3d_modeling.")
-        if display_tif_fusion:
-            cv2.destroyWindow("tif_fusion")
+        if display_vi_fusion:
+            cv2.destroyWindow("vi_fusion")
             if developer_mode:
-                v_tif_fusion.release()
-            print("Save video of tif_fusion.")
+                v_vi_fusion.release()
+            print("Save video of vi_fusion.")
         print("\nReceived the shutdown signal.\n")
         rospy.signal_shutdown("Everything is over now.")
     time_display = time.time() - time_display_start
@@ -564,7 +534,7 @@ if __name__ == '__main__':
     display_frame = rospy.get_param("~display_frame")
     display_obj_state = rospy.get_param("~display_obj_state")
     
-    display_tif_fusion = rospy.get_param("~display_tif_fusion")
+    display_vi_fusion = rospy.get_param("~display_vi_fusion")
     
     win_h1, win_w1 = image1_frames[0].shape[0], image1_frames[0].shape[1]
     win_h2, win_w2 = image2_frames[0].shape[0], image2_frames[0].shape[1]
@@ -609,11 +579,15 @@ if __name__ == '__main__':
         v_format = cv2.VideoWriter_fourcc(*"mp4v")
         v_image2_3d_modeling = cv2.VideoWriter(v_path, v_format, frame_rate,
             (win_w, win_h), True)
-    if display_tif_fusion and developer_mode:
-        v_path = 'tif_fusion.mp4'
+    if display_vi_fusion and developer_mode:
+        v_path = 'vi_fusion.mp4'
         v_format = cv2.VideoWriter_fourcc(*"mp4v")
-        v_tif_fusion = cv2.VideoWriter(v_path, v_format, frame_rate,
+        v_vi_fusion = cv2.VideoWriter(v_path, v_format, frame_rate,
             (win_w * 3, win_h), True)
+    
+    if display_vi_fusion:
+        from vi_fusion import VIFusion
+        vi = VIFusion()
     
     # 启动数据融合线程
     processing_mode = rospy.get_param("~processing_mode")

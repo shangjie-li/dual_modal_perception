@@ -18,6 +18,9 @@ ROS package for dual modal perception (rgbt)
    # 使Python3与ROS兼容
    pip install catkin_tools
    pip install rospkg
+   
+   # 安装PyWavelets
+   pip install PyWavelets
    ```
  - 建立工作空间并拷贝这个库
    ```Shell
@@ -72,6 +75,8 @@ ROS package for dual modal perception (rgbt)
    display_3d_modeling:                True
    display_frame:                      True
    display_obj_state:                  True
+   
+   display_vi_fusion:                  True
   
    processing_mode: DT # D - detection, DT - detection and tracking
    modality: RGB # RGB - RGB image, T - Thermal image, RGBT - Both
