@@ -31,7 +31,7 @@ from layers.output_utils import postprocess
 from data import cfg, set_cfg, set_dataset
 
 Items = ['pedestrian', 'cyclist', 'car', 'bus', 'truck', 'traffic_light', 'traffic_sign']
-Confs = [0.10, 1.00, 1.00, 1.00, 1.00, 1.00, 1.00]
+Confs = [0.10, 0.10, 0.50, 0.50, 0.50, 0.20, 0.20]
 Topks = [10, 10, 10, 10, 10, 10, 10]
 
 def create_random_color():
