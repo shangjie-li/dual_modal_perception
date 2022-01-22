@@ -21,7 +21,7 @@ dt:
   display_vi_fusion:                  True
   
   processing_mode: D # D - detection, DT - detection and tracking
-  modality: T # RGB - RGB image, T - Thermal image, RGBT - Both
+  modality: RGBT # RGB - RGB image, T - Thermal image, RGBT - Both
   
   blind_update_limit:                 0
   frame_rate:                         10
