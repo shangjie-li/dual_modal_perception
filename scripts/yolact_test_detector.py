@@ -109,7 +109,7 @@ def draw_segmentation_result(img, mask, classname, score, box, color):
     return img
 
 class YolactDetector():
-    def __init__(self, model='/weights/yolact_vovnet27_79_20000.pth'):
+    def __init__(self, model='/weights/yolact_resnet50_71_40000.pth'):
         # 功能：初始化YolactDetector对象
         # 输入：model <class 'str'> 权重文件的路径
         
@@ -126,7 +126,7 @@ class YolactDetector():
         pth = SavePath.from_str(trained_model)
         config = pth.model_name + '_config'
         set_cfg(config)
-        set_dataset('seumm_dataset')
+        set_dataset('seumm_dual')
         
         # 加载网络模型
         print('Loading the model...')

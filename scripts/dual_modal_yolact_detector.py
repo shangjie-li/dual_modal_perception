@@ -27,7 +27,7 @@ from yolact import Yolact
 from utils import timer
 from utils.functions import SavePath
 from layers.output_utils import postprocess
-from data import cfg, set_cfg
+from data import cfg, set_cfg, set_dataset
 from data import MEANS1, MEANS2, STD1, STD2
 
 Items = ['pedestrian', 'cyclist', 'car', 'bus', 'truck', 'traffic_light', 'traffic_sign']
@@ -109,7 +109,7 @@ def draw_segmentation_result(img, mask, classname, score, box, color):
     return img
 
 class YolactDetector():
-    def __init__(self, model='/weights/yolact_resnet50_178_100000.pth'):
+    def __init__(self, model='/weights/yolact_resnet50_35_40000.pth'):
         # 功能：初始化YolactDetector对象
         # 输入：model <class 'str'> 权重文件的路径
         
@@ -126,6 +126,7 @@ class YolactDetector():
         pth = SavePath.from_str(trained_model)
         config = pth.model_name + '_config'
         set_cfg(config)
+        set_dataset('seumm_dual')
         
         # 加载网络模型
         print('Loading the model...')
