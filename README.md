@@ -33,8 +33,8 @@ ROS package for dual modal perception (rgbt)
       cols: 4
       dt: d
       data: [859, 0, 339, 0, 0, 864, 212, 0, 0, 0, 1, 0]
-   Height: 2.0 # the height of camera (meter)
-   DepressionAngle: 0.0 # the depression angle of camera (degree)
+   Height: 2.0 # the height of the camera (meter)
+   DepressionAngle: 0.0 # the depression angle of the camera (degree)
    ```
 
 ## 运行
