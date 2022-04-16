@@ -109,7 +109,7 @@ def draw_segmentation_result(img, mask, classname, score, box, color):
     return img
 
 class YolactDetector():
-    def __init__(self, model='/weights/yolact_resnet50_54_800000.pth'):
+    def __init__(self, model='/weights/coco/yolact_resnet50_54_800000.pth'):
         # 功能：初始化YolactDetector对象
         # 输入：model <class 'str'> 权重文件的路径
         
@@ -203,7 +203,7 @@ class YolactDetector():
         return masks, classes, scores, boxes
         
 if __name__ == '__main__':
-    img = cv2.imread('/home/lishangjie/data/KITTI/kitti_dual/images/000008.png')
+    img = cv2.imread('/home/lishangjie/data/COCO/coco_raw/images/000000000001.jpg')
     
     detector = YolactDetector()
     masks, classes, scores, boxes = detector.run(img)

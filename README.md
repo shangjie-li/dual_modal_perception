@@ -30,11 +30,12 @@ ROS package for dual modal perception (rgbt)
    cd ..
    catkin_make
    ```
- - 准备双模态检测的模型文件，并保存至目录`dual_modal_perception/modules/dual_modal_yolact/weights`
- - 准备单模态检测的模型文件，并保存至目录`dual_modal_perception/modules/yolact/weights`
+ - 准备双模态检测的模型文件，并保存至目录`dual_modal_perception/modules/dual_modal_yolact/weights/seumm_dual/`
+ - 准备可见光单模态检测的模型文件，并保存至目录`dual_modal_perception/modules/yolact/weights/coco/`
+ - 准备红外光单模态检测的模型文件，并保存至目录`dual_modal_perception/modules/yolact-test/weights/seumm/`
 
 ## 参数配置
- - 编写相机标定参数`fusion_perception/conf/calibration_image.yaml`
+ - 编写相机标定参数`dual_modal_perception/conf/calibration_image.yaml`
    ```
    %YAML:1.0
    ---
@@ -86,12 +87,12 @@ ROS package for dual modal perception (rgbt)
    max_id:                             10000
    ```
     - `sub_image1_topic`指明订阅的可见光图像话题。
-    - `sub_image2_topic`指明订阅的红外图像话题。
+    - `sub_image2_topic`指明订阅的红外光图像话题。
 
 ## 运行
  - 加载参数文件至ROS参数服务器
    ```
-   cd fusion_perception/conf
+   cd dual_modal_perception/conf
    rosparam load param.yaml
    ```
  - 启动算法`dual_modal_perception`
