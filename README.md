@@ -32,7 +32,7 @@ ROS package for dual modal perception (rgbt)
    ```
  - 准备双模态检测的模型文件，并保存至目录`dual_modal_perception/modules/dual_modal_yolact/weights/seumm_dual/`
  - 准备可见光单模态检测的模型文件，并保存至目录`dual_modal_perception/modules/yolact/weights/coco/`
- - 准备红外光单模态检测的模型文件，并保存至目录`dual_modal_perception/modules/yolact-test/weights/seumm/`
+ - 准备红外光单模态检测的模型文件，并保存至目录`dual_modal_perception/modules/yolact-test/weights/seumm_lwir/`
 
 ## 参数配置
  - 编写相机标定参数`dual_modal_perception/conf/calibration_image.yaml`
