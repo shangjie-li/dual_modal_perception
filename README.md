@@ -20,8 +20,8 @@ ROS package for dual modal perception (rgbt)
    pip install catkin_tools
    pip install rospkg
    ```
- - 准备可见光模态的模型文件，并保存至目录`dual_modal_perception/modules/yolov5-test/weights/coco/`
- - 准备红外光模态的模型文件，并保存至目录`dual_modal_perception/modules/yolov5-test/weights/seumm/`
+ - 准备可见光模态的模型文件，并保存至目录`dual_modal_perception/modules/yolov5-test/weights/seumm_visible/`
+ - 准备红外光模态的模型文件，并保存至目录`dual_modal_perception/modules/yolov5-test/weights/seumm_lwir/`
 
 ## 参数配置
  - 编写相机标定参数`dual_modal_perception/conf/calibration_image.yaml`
