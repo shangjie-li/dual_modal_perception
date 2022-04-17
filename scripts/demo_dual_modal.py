@@ -81,27 +81,19 @@ def timer_callback(event):
     start = time.time()
     if args.modality == 'RGB':
         labels, scores, boxes = detector1.run(
-            cur_frame1, conf_thres=0.50, classes=[0, 2, 5, 7]
-        ) # person, car, bus, truck
+            cur_frame1, conf_thres=0.50, classes=[0, 1, 2, 3, 4]
+        ) # pedestrian, cyclist, car, bus, truck
     elif args.modality == 'T':
         labels, scores, boxes = detector2.run(
             cur_frame2, conf_thres=0.50, classes=[0, 1, 2, 3, 4]
         ) # pedestrian, cyclist, car, bus, truck
-        labels_temp = labels.copy()
-        labels = []
-        for i in labels_temp:
-            labels.append(i if i not in ['pedestrian', 'cyclist'] else 'person')
     elif args.modality == 'RGBT':
         labels1, scores1, boxes1 = detector1.run(
-            cur_frame1, conf_thres=0.50, classes=[0, 2, 5, 7]
-        ) # person, car, bus, truck
+            cur_frame1, conf_thres=0.50, classes=[0, 1, 2, 3, 4]
+        ) # pedestrian, cyclist, car, bus, truck
         labels2, scores2, boxes2 = detector2.run(
             cur_frame2, conf_thres=0.50, classes=[0, 1, 2, 3, 4]
         ) # pedestrian, cyclist, car, bus, truck
-        labels_temp = labels2.copy()
-        labels2 = []
-        for i in labels_temp:
-            labels2.append(i if i not in ['pedestrian', 'cyclist'] else 'person')
         labels = labels1 + labels2
         scores = scores1 + scores2
         if boxes1.shape[0] > 0 and boxes2.shape[0] > 0:
@@ -116,8 +108,15 @@ def timer_callback(event):
             boxes = np.array([])
     else:
         raise ValueError("The modality must be 'RGB', 'T' or 'RGBT'.")
+    labels_temp = labels.copy()
+    labels = []
+    for i in labels_temp:
+        labels.append(i if i not in ['pedestrian', 'cyclist'] else 'person')
     
     locations = mono.estimate(boxes)
+    indices = [i for i in range(len(locations)) if locations[i][1] > 0]
+    labels, scores, boxes, locations = \
+        np.array(labels)[indices], np.array(scores)[indices], boxes[indices], np.array(locations)[indices]
     distances = [(loc[0] ** 2 + loc[1] ** 2) ** 0.5 for loc in locations]
     cur_frame1 = cur_frame1[:, :, ::-1].copy() # to BGR
     cur_frame2 = cur_frame2[:, :, ::-1].copy() # to BGR
@@ -129,6 +128,7 @@ def timer_callback(event):
             cur_frame2, str(labels[i]), float(scores[i]), boxes[i], location=locations[i]
         )
     result_frame = np.concatenate([cur_frame1, cur_frame2], axis=1)
+    
     if args.display:
         if not display(result_frame, v_writer, win_name='result'):
             print("\nReceived the shutdown signal.\n")
@@ -159,12 +159,12 @@ if __name__ == '__main__':
     
     # 初始化Yolov5Detector
     if args.modality == 'RGB':
-        detector1 = Yolov5Detector(weights='weights/coco/yolov5s.pt')
+        detector1 = Yolov5Detector(weights='weights/seumm_visible/yolov5s_50ep_pretrained.pt')
     elif args.modality == 'T':
-        detector2 = Yolov5Detector(weights='weights/seumm/yolov5s_100ep_pretrained.pt')
+        detector2 = Yolov5Detector(weights='weights/seumm_lwir/yolov5s_100ep_pretrained.pt')
     elif args.modality == 'RGBT':
-        detector1 = Yolov5Detector(weights='weights/coco/yolov5s.pt')
-        detector2 = Yolov5Detector(weights='weights/seumm/yolov5s_100ep_pretrained.pt')
+        detector1 = Yolov5Detector(weights='weights/seumm_visible/yolov5s_50ep_pretrained.pt')
+        detector2 = Yolov5Detector(weights='weights/seumm_lwir/yolov5s_100ep_pretrained.pt')
     else:
         raise ValueError("The modality must be 'RGB', 'T' or 'RGBT'.")
     

@@ -62,28 +62,25 @@ def timer_callback(event):
     global frame
     frame += 1
     start = time.time()
-    if args.modality == 'RGB':
-        labels, scores, boxes = detector.run(
-            cur_frame, conf_thres=0.50, classes=[0, 2, 5, 7]
-        ) # person, car, bus, truck
-    elif args.modality == 'T':
-        labels, scores, boxes = detector.run(
-            cur_frame, conf_thres=0.50, classes=[0, 1, 2, 3, 4]
-        ) # pedestrian, cyclist, car, bus, truck
-        labels_temp = labels.copy()
-        labels = []
-        for i in labels_temp:
-            labels.append(i if i not in ['pedestrian', 'cyclist'] else 'person')
-    else:
-        raise ValueError("The modality must be `RGB` or `T`.")
+    labels, scores, boxes = detector.run(
+        cur_frame, conf_thres=0.50, classes=[0, 1, 2, 3, 4]
+    ) # pedestrian, cyclist, car, bus, truck
+    labels_temp = labels.copy()
+    labels = []
+    for i in labels_temp:
+        labels.append(i if i not in ['pedestrian', 'cyclist'] else 'person')
     
     locations = mono.estimate(boxes)
+    indices = [i for i in range(len(locations)) if locations[i][1] > 0]
+    labels, scores, boxes, locations = \
+        np.array(labels)[indices], np.array(scores)[indices], boxes[indices], np.array(locations)[indices]
     distances = [(loc[0] ** 2 + loc[1] ** 2) ** 0.5 for loc in locations]
     cur_frame = cur_frame[:, :, ::-1].copy() # to BGR
     for i in reversed(np.argsort(distances)):
         cur_frame = draw_predictions(
             cur_frame, str(labels[i]), float(scores[i]), boxes[i], location=locations[i]
         )
+    
     if args.display:
         if not display(cur_frame, v_writer, win_name='result'):
             print("\nReceived the shutdown signal.\n")
@@ -114,9 +111,9 @@ if __name__ == '__main__':
     
     # 初始化Yolov5Detector
     if args.modality == 'RGB':
-        detector = Yolov5Detector(weights='weights/coco/yolov5s.pt')
+        detector = Yolov5Detector(weights='weights/seumm_visible/yolov5s_50ep_pretrained.pt')
     elif args.modality == 'T':
-        detector = Yolov5Detector(weights='weights/seumm/yolov5s_100ep_pretrained.pt')
+        detector = Yolov5Detector(weights='weights/seumm_lwir/yolov5s_100ep_pretrained.pt')
     else:
         raise ValueError("The modality must be `RGB` or `T`.")
     

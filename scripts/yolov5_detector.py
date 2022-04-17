@@ -47,7 +47,7 @@ def draw_predictions(img, label, score, box, color=(156, 39, 176), location=None
         cv2.rectangle(img, (u1, v1), (u1 + text_w, v1 - text_h), color, -1)
         cv2.putText(img, text, (u1, v1 - 4), f_face, f_scale, (255, 255, 255), f_thickness, cv2.LINE_AA)
     
-    if location:
+    if location is not None:
         text = '(%.1fm, %.1fm)' % (location[0], location[1])
         text_w, text_h = cv2.getTextSize(text, f_face, f_scale, f_thickness)[0]
         text_h += 6
@@ -61,7 +61,7 @@ def draw_predictions(img, label, score, box, color=(156, 39, 176), location=None
     return img
 
 class Yolov5Detector():
-    def __init__(self, weights='weights/coco/yolov5s.pt'):
+    def __init__(self, weights=''):
         imgsz = 640
         self.device = device = select_device('')
         self.half = half = device.type != 'cpu' # half precision only supported on CUDA
@@ -123,14 +123,18 @@ class Yolov5Detector():
             return [], [], np.array([])
 
 if __name__ == '__main__':
-    file_name = '/home/lishangjie/data/KITTI/kitti_raw/images/000098.png'
+    #~ file_name = '/home/lishangjie/data/SEUMM/seumm_visible/images/001000.jpg'
+    file_name = '/home/lishangjie/data/SEUMM/seumm_lwir/images/001000.jpg'
     assert os.path.exists(file_name), '%s Not Found' % file_name
     img = cv2.imread(file_name)
     
-    detector = Yolov5Detector()
+    #~ detector = Yolov5Detector(weights='weights/seumm_visible/yolov5s_50ep_pretrained.pt')
+    detector = Yolov5Detector(weights='weights/seumm_lwir/yolov5s_100ep_pretrained.pt')
     
     t1 = time.time()
-    labels, scores, boxes = detector.run(img, classes=[0, 2, 5, 7]) # person, car, bus, truck
+    labels, scores, boxes = detector.run(
+        img, classes=[0, 1, 2, 3, 4]
+    ) # pedestrian, cyclist, car, bus, truck
     t2 = time.time()
     print('time cost:', t2 - t1, '\n')
     
