@@ -37,6 +37,8 @@ parser.add_argument('--calib_file', default='../conf/calibration_image.yaml', ty
     help='The calibration file of the camera.')
 parser.add_argument('--modality', default='RGB', type=str,
     help='The modality to use. This should be `RGB` or `T`.')
+parser.add_argument('--indoor', action='store_true',
+    help='Whether to use INDOOR detection mode.')
 parser.add_argument('--frame_rate', default=10, type=int,
     help='Working frequency.')
 parser.add_argument('--display', action='store_true',
@@ -62,9 +64,14 @@ def timer_callback(event):
     global frame
     frame += 1
     start = time.time()
-    labels, scores, boxes = detector.run(
-        cur_frame, conf_thres=0.50, classes=[0, 1, 2, 3, 4]
-    ) # pedestrian, cyclist, car, bus, truck
+    if args.indoor:
+        labels, scores, boxes = detector.run(
+            cur_frame, conf_thres=0.50, classes=[0]
+        ) # person
+    else:
+        labels, scores, boxes = detector.run(
+            cur_frame, conf_thres=0.50, classes=[0, 1, 2, 3, 4]
+        ) # pedestrian, cyclist, car, bus, truck
     labels_temp = labels.copy()
     labels = []
     for i in labels_temp:
@@ -94,7 +101,7 @@ def timer_callback(event):
 
 if __name__ == '__main__':
     # 初始化节点
-    rospy.init_node("single_modal_perception")
+    rospy.init_node("single_modal_perception", anonymous=True, disable_signals=True)
     frame = 0
     
     # 记录时间戳和检测结果
@@ -110,12 +117,15 @@ if __name__ == '__main__':
     mono = MonoEstimator(args.calib_file, print_info=args.print)
     
     # 初始化Yolov5Detector
-    if args.modality == 'RGB':
-        detector = Yolov5Detector(weights='weights/seumm_visible/yolov5s_50ep_pretrained.pt')
-    elif args.modality == 'T':
-        detector = Yolov5Detector(weights='weights/seumm_lwir/yolov5s_100ep_pretrained.pt')
+    if args.indoor:
+        detector = Yolov5Detector(weights='weights/coco/yolov5s.pt')
     else:
-        raise ValueError("The modality must be `RGB` or `T`.")
+        if args.modality.lower() == 'rgb':
+            detector = Yolov5Detector(weights='weights/seumm_visible/yolov5s_50ep_pretrained.pt')
+        elif args.modality.lower() == 't':
+            detector = Yolov5Detector(weights='weights/seumm_lwir/yolov5s_100ep_pretrained.pt')
+        else:
+            raise ValueError("The modality must be `RGB` or `T`.")
     
     # 准备图像序列
     image_stamp = None

@@ -40,20 +40,16 @@ ROS package for dual modal perception (rgbt)
 ## 运行
  - 启动双模态检测算法（检测结果图像可由`rqt_image_view /result`查看）
    ```
-   cd dual_modal_perception/scripts
    python3 demo_dual_modal.py
    
    # If you want print infos and save videos, run
-   cd dual_modal_perception/scripts
    python3 demo_dual_modal.py --print --display
    ```
  - 启动单模态检测算法（检测结果图像可由`rqt_image_view /result`查看）
    ```
-   cd dual_modal_perception/scripts
    python3 demo_single_modal.py
    
    # If you want print infos and save videos, run
-   cd dual_modal_perception/scripts
    python3 demo_single_modal.py --print --display
    ```
 

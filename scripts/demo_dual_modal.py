@@ -40,6 +40,8 @@ parser.add_argument('--calib_file', default='../conf/calibration_image.yaml', ty
     help='The calibration file of the camera.')
 parser.add_argument('--modality', default='RGBT', type=str,
     help='The modality to use. This should be `RGB`, `T` or `RGBT`.')
+parser.add_argument('--indoor', action='store_true',
+    help='Whether to use INDOOR detection mode.')
 parser.add_argument('--frame_rate', default=10, type=int,
     help='Working frequency.')
 parser.add_argument('--display', action='store_true',
@@ -79,35 +81,40 @@ def timer_callback(event):
     global frame
     frame += 1
     start = time.time()
-    if args.modality == 'RGB':
-        labels, scores, boxes = detector1.run(
-            cur_frame1, conf_thres=0.50, classes=[0, 1, 2, 3, 4]
-        ) # pedestrian, cyclist, car, bus, truck
-    elif args.modality == 'T':
-        labels, scores, boxes = detector2.run(
-            cur_frame2, conf_thres=0.50, classes=[0, 1, 2, 3, 4]
-        ) # pedestrian, cyclist, car, bus, truck
-    elif args.modality == 'RGBT':
-        labels1, scores1, boxes1 = detector1.run(
-            cur_frame1, conf_thres=0.50, classes=[0, 1, 2, 3, 4]
-        ) # pedestrian, cyclist, car, bus, truck
-        labels2, scores2, boxes2 = detector2.run(
-            cur_frame2, conf_thres=0.50, classes=[0, 1, 2, 3, 4]
-        ) # pedestrian, cyclist, car, bus, truck
-        labels = labels1 + labels2
-        scores = scores1 + scores2
-        if boxes1.shape[0] > 0 and boxes2.shape[0] > 0:
-            boxes = np.concatenate([boxes1, boxes2], axis=0)
-            indices = simplified_nms(boxes, scores)
-            labels, scores, boxes = np.array(labels)[indices], np.array(scores)[indices], boxes[indices]
-        elif boxes1.shape[0] > 0:
-            boxes = boxes1
-        elif boxes2.shape[0] > 0:
-            boxes = boxes2
-        else:
-            boxes = np.array([])
+    if args.indoor:
+        labels, scores, boxes = detector.run(
+            cur_frame1, conf_thres=0.50, classes=[0]
+        ) # person
     else:
-        raise ValueError("The modality must be 'RGB', 'T' or 'RGBT'.")
+        if args.modality.lower() == 'rgb':
+            labels, scores, boxes = detector1.run(
+                cur_frame1, conf_thres=0.50, classes=[0, 1, 2, 3, 4]
+            ) # pedestrian, cyclist, car, bus, truck
+        elif args.modality.lower() == 't':
+            labels, scores, boxes = detector2.run(
+                cur_frame2, conf_thres=0.50, classes=[0, 1, 2, 3, 4]
+            ) # pedestrian, cyclist, car, bus, truck
+        elif args.modality.lower() == 'rgbt':
+            labels1, scores1, boxes1 = detector1.run(
+                cur_frame1, conf_thres=0.50, classes=[0, 1, 2, 3, 4]
+            ) # pedestrian, cyclist, car, bus, truck
+            labels2, scores2, boxes2 = detector2.run(
+                cur_frame2, conf_thres=0.50, classes=[0, 1, 2, 3, 4]
+            ) # pedestrian, cyclist, car, bus, truck
+            labels = labels1 + labels2
+            scores = scores1 + scores2
+            if boxes1.shape[0] > 0 and boxes2.shape[0] > 0:
+                boxes = np.concatenate([boxes1, boxes2], axis=0)
+                indices = simplified_nms(boxes, scores)
+                labels, scores, boxes = np.array(labels)[indices], np.array(scores)[indices], boxes[indices]
+            elif boxes1.shape[0] > 0:
+                boxes = boxes1
+            elif boxes2.shape[0] > 0:
+                boxes = boxes2
+            else:
+                boxes = np.array([])
+        else:
+            raise ValueError("The modality must be 'RGB', 'T' or 'RGBT'.")
     labels_temp = labels.copy()
     labels = []
     for i in labels_temp:
@@ -142,7 +149,7 @@ def timer_callback(event):
 
 if __name__ == '__main__':
     # 初始化节点
-    rospy.init_node("dual_modal_perception")
+    rospy.init_node("dual_modal_perception", anonymous=True, disable_signals=True)
     frame = 0
     
     # 记录时间戳和检测结果
@@ -158,15 +165,18 @@ if __name__ == '__main__':
     mono = MonoEstimator(args.calib_file, print_info=args.print)
     
     # 初始化Yolov5Detector
-    if args.modality == 'RGB':
-        detector1 = Yolov5Detector(weights='weights/seumm_visible/yolov5s_50ep_pretrained.pt')
-    elif args.modality == 'T':
-        detector2 = Yolov5Detector(weights='weights/seumm_lwir/yolov5s_100ep_pretrained.pt')
-    elif args.modality == 'RGBT':
-        detector1 = Yolov5Detector(weights='weights/seumm_visible/yolov5s_50ep_pretrained.pt')
-        detector2 = Yolov5Detector(weights='weights/seumm_lwir/yolov5s_100ep_pretrained.pt')
+    if args.indoor:
+        detector = Yolov5Detector(weights='weights/coco/yolov5s.pt')
     else:
-        raise ValueError("The modality must be 'RGB', 'T' or 'RGBT'.")
+        if args.modality.lower() == 'rgb':
+            detector1 = Yolov5Detector(weights='weights/seumm_visible/yolov5s_50ep_pretrained.pt')
+        elif args.modality.lower() == 't':
+            detector2 = Yolov5Detector(weights='weights/seumm_lwir/yolov5s_100ep_pretrained.pt')
+        elif args.modality.lower() == 'rgbt':
+            detector1 = Yolov5Detector(weights='weights/seumm_visible/yolov5s_50ep_pretrained.pt')
+            detector2 = Yolov5Detector(weights='weights/seumm_lwir/yolov5s_100ep_pretrained.pt')
+        else:
+            raise ValueError("The modality must be 'RGB', 'T' or 'RGBT'.")
     
     # 准备图像序列
     image1_stamp, image1_frame = None, None
