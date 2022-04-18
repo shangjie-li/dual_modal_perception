@@ -114,7 +114,7 @@ def timer_callback(event):
         labels.append(i if i not in ['pedestrian', 'cyclist'] else 'person')
     
     locations = mono.estimate(boxes)
-    indices = [i for i in range(len(locations)) if locations[i][1] > 0]
+    indices = [i for i in range(len(locations)) if locations[i][1] > 0 and locations[i][1] < 200]
     labels, scores, boxes, locations = \
         np.array(labels)[indices], np.array(scores)[indices], boxes[indices], np.array(locations)[indices]
     distances = [(loc[0] ** 2 + loc[1] ** 2) ** 0.5 for loc in locations]
