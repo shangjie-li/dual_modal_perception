@@ -123,13 +123,13 @@ class Yolov5Detector():
             return [], [], np.array([])
 
 if __name__ == '__main__':
-    #~ file_name = '/home/lishangjie/data/SEUMM/seumm_visible/images/001000.jpg'
-    file_name = '/home/lishangjie/data/SEUMM/seumm_lwir/images/001000.jpg'
+    file_name = '/home/lishangjie/data/SEUMM/seumm_visible/images/001000.jpg'
+    #~ file_name = '/home/lishangjie/data/SEUMM/seumm_lwir/images/001000.jpg'
     assert os.path.exists(file_name), '%s Not Found' % file_name
     img = cv2.imread(file_name)
     
-    #~ detector = Yolov5Detector(weights='weights/seumm_visible/yolov5s_50ep_pretrained.pt')
-    detector = Yolov5Detector(weights='weights/seumm_lwir/yolov5s_100ep_pretrained.pt')
+    detector = Yolov5Detector(weights='weights/seumm_visible/yolov5s_100ep_pretrained.pt')
+    #~ detector = Yolov5Detector(weights='weights/seumm_lwir/yolov5s_100ep_pretrained.pt')
     
     t1 = time.time()
     labels, scores, boxes = detector.run(

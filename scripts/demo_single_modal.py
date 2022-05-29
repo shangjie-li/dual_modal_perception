@@ -121,7 +121,7 @@ if __name__ == '__main__':
         detector = Yolov5Detector(weights='weights/coco/yolov5s.pt')
     else:
         if args.modality.lower() == 'rgb':
-            detector = Yolov5Detector(weights='weights/seumm_visible/yolov5s_50ep_pretrained.pt')
+            detector = Yolov5Detector(weights='weights/seumm_visible/yolov5s_100ep_pretrained.pt')
         elif args.modality.lower() == 't':
             detector = Yolov5Detector(weights='weights/seumm_lwir/yolov5s_100ep_pretrained.pt')
         else:

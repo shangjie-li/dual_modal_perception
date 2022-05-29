@@ -169,11 +169,11 @@ if __name__ == '__main__':
         detector = Yolov5Detector(weights='weights/coco/yolov5s.pt')
     else:
         if args.modality.lower() == 'rgb':
-            detector1 = Yolov5Detector(weights='weights/seumm_visible/yolov5s_50ep_pretrained.pt')
+            detector1 = Yolov5Detector(weights='weights/seumm_visible/yolov5s_100ep_pretrained.pt')
         elif args.modality.lower() == 't':
             detector2 = Yolov5Detector(weights='weights/seumm_lwir/yolov5s_100ep_pretrained.pt')
         elif args.modality.lower() == 'rgbt':
-            detector1 = Yolov5Detector(weights='weights/seumm_visible/yolov5s_50ep_pretrained.pt')
+            detector1 = Yolov5Detector(weights='weights/seumm_visible/yolov5s_100ep_pretrained.pt')
             detector2 = Yolov5Detector(weights='weights/seumm_lwir/yolov5s_100ep_pretrained.pt')
         else:
             raise ValueError("The modality must be 'RGB', 'T' or 'RGBT'.")
