@@ -15,44 +15,29 @@ class MonoEstimator():
         self.u0 = int(mat[0, 2])
         self.v0 = int(mat[1, 2])
         
-        self.height = fs.getNode('Height').real()
-        self.depression = fs.getNode('DepressionAngle').real() * math.pi / 180.0
+        self.height = fs.getNode('Height').real() # meter
+        self.depression = fs.getNode('DepressionAngle').real() # degree
         
         if print_info:
             print('Calibration of camera:')
             print('  Parameters: fx(%d) fy(%d) u0(%d) v0(%d)' % (self.fx, self.fy, self.u0, self.v0))
             print('  Height: %.2fm' % self.height)
-            print('  DepressionAngle: %.2frad' % self.depression)
+            print('  DepressionAngle: %.2fdegree' % self.depression)
             print()
     
-    def uv_to_xyz(self, u, v):
-        # Compute (x, y, z) coordinates in the real world, according to (u, v) coordinates in the image.
-        # X axis - on the right side of the camera
-        # Z axis - in front of the camera
-        u = int(u)
-        v = int(v)
-        
-        fx, fy = self.fx, self.fy
-        u0, v0 = self.u0, self.v0
-        
-        h = self.height
-        t = self.depression
-        
-        denominator = fy * sin(t) + (v - v0) * cos(t)
-        if denominator != 0:
-            z = (h * fy * cos(t) - h * (v - v0) * sin(t)) / denominator
-            if z > 1000: z = 1000
+    def get_location(self, u, v):
+        theta_0 = self.depression * np.pi / 180
+        theta_lat = np.arctan2(u - self.u0, self.fx)
+        theta_ver = theta_0 + np.arctan2(v - self.v0, self.fy)
+        if theta_ver < 1e-5:
+            return (float('inf'), float('inf'))
         else:
-            z = 1000
-        x = (z * (u - u0) * cos(t) + h * (u - u0) * sin(t)) / fx
-        y = h
-        return x, y, z
+            range_lon = self.height / np.tan(theta_ver)
+            range_lat = range_lon * np.tan(theta_lat)
+            return (range_lat, range_lon)
     
-    def estimate(self, boxes):
-        locations = []
-        if boxes.shape[0] > 0:
-            for box in boxes:
-                u, v = (box[0] + box[2]) / 2, box[3]
-                x, y, z = self.uv_to_xyz(u, v)
-                locations.append((x, z))
-        return locations
+    def estimate(self, box):
+        box = box.reshape(-1)
+        u, v = (box[0] + box[2]) / 2, box[3]
+        return self.get_location(u, v)
+    

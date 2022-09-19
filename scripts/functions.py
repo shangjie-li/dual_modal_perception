@@ -39,10 +39,11 @@ def print_info(frame, stamp, delay, labels, scores, boxes, locs, file_name='resu
     with open(file_name, 'a') as fob:
         fob.write(time_str + '\n')
     for i in range(len(labels)):
-        info_str = 'box:%d %d %d %d  loc:(%.2f, %.2f)  score:%.2f  label:%s' % (
-            boxes[i][0], boxes[i][1], boxes[i][2], boxes[i][3], locs[i][0], locs[i][1], \
-            scores[i], labels[i]
+        info_str = 'box:%d %d %d %d  score:%.2f  label:%s' % (
+            boxes[i][0], boxes[i][1], boxes[i][2], boxes[i][3], scores[i], labels[i]
         )
+        if locs[i] is not None:
+            info_str += '  loc:(%.2f, %.2f)' % (locs[i][0], locs[i][1])
         print(info_str)
         with open(file_name, 'a') as fob:
             fob.write(info_str + '\n')
@@ -50,7 +51,7 @@ def print_info(frame, stamp, delay, labels, scores, boxes, locs, file_name='resu
     with open(file_name, 'a') as fob:
         fob.write('\n')
 
-def simplified_nms(boxes, scores, iou_thres=0.5):
+def simplified_nms(boxes, scores, iou_thres=0.25):
     '''
     Args:
         boxes: (n, 4), xyxy format

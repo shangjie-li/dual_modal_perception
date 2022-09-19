@@ -120,10 +120,10 @@ class Yolov5Detector():
             scores = [float('%.2f' % conf) for conf in det[:, -2]]
             return labels, scores, boxes
         else:
-            return [], [], np.array([])
+            return [], [], np.array([]).reshape(-1, 4)
 
 if __name__ == '__main__':
-    file_name = '/home/lishangjie/data/SEUMM/seumm_visible/images/001000.jpg'
+    file_name = '1.png'
     #~ file_name = '/home/lishangjie/data/SEUMM/seumm_lwir/images/001000.jpg'
     assert os.path.exists(file_name), '%s Not Found' % file_name
     img = cv2.imread(file_name)

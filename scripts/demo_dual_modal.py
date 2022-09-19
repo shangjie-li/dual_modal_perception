@@ -83,24 +83,24 @@ def timer_callback(event):
     start = time.time()
     if args.indoor:
         labels, scores, boxes = detector.run(
-            cur_frame1, conf_thres=0.50, classes=[0]
+            cur_frame1, conf_thres=0.30, classes=[0]
         ) # person
     else:
         if args.modality.lower() == 'rgb':
             labels, scores, boxes = detector1.run(
-                cur_frame1, conf_thres=0.50, classes=[0, 1, 2, 3, 4]
-            ) # pedestrian, cyclist, car, bus, truck
+                cur_frame1, conf_thres=0.30, classes=[0, 1, 2, 3, 4, 5, 6]
+            ) # pedestrian, cyclist, car, bus, truck, traffic_light, traffic_sign
         elif args.modality.lower() == 't':
             labels, scores, boxes = detector2.run(
-                cur_frame2, conf_thres=0.50, classes=[0, 1, 2, 3, 4]
-            ) # pedestrian, cyclist, car, bus, truck
+                cur_frame2, conf_thres=0.30, classes=[0, 1, 2, 3, 4, 5, 6]
+            ) # pedestrian, cyclist, car, bus, truck, traffic_light, traffic_sign
         elif args.modality.lower() == 'rgbt':
             labels1, scores1, boxes1 = detector1.run(
-                cur_frame1, conf_thres=0.50, classes=[0, 1, 2, 3, 4]
-            ) # pedestrian, cyclist, car, bus, truck
+                cur_frame1, conf_thres=0.30, classes=[0, 1, 2, 3, 4, 5, 6]
+            ) # pedestrian, cyclist, car, bus, truck, traffic_light, traffic_sign
             labels2, scores2, boxes2 = detector2.run(
-                cur_frame2, conf_thres=0.50, classes=[0, 1, 2, 3, 4]
-            ) # pedestrian, cyclist, car, bus, truck
+                cur_frame2, conf_thres=0.30, classes=[0, 1, 2, 3, 4, 5, 6]
+            ) # pedestrian, cyclist, car, bus, truck, traffic_light, traffic_sign
             labels = labels1 + labels2
             scores = scores1 + scores2
             if boxes1.shape[0] > 0 and boxes2.shape[0] > 0:
@@ -112,7 +112,7 @@ def timer_callback(event):
             elif boxes2.shape[0] > 0:
                 boxes = boxes2
             else:
-                boxes = np.array([])
+                boxes = np.array([]).reshape(-1, 4)
         else:
             raise ValueError("The modality must be 'RGB', 'T' or 'RGBT'.")
     labels_temp = labels.copy()
@@ -120,13 +120,26 @@ def timer_callback(event):
     for i in labels_temp:
         labels.append(i if i not in ['pedestrian', 'cyclist'] else 'person')
     
-    locations = mono.estimate(boxes)
-    indices = [i for i in range(len(locations)) if locations[i][1] > 0 and locations[i][1] < 200]
-    labels, scores, boxes, locations = \
-        np.array(labels)[indices], np.array(scores)[indices], boxes[indices], np.array(locations)[indices]
-    distances = [(loc[0] ** 2 + loc[1] ** 2) ** 0.5 for loc in locations]
+    locations = []
+    for i in range(boxes.shape[0]):
+        if labels[i] in ['traffic_light', 'traffic_sign']:
+            location = None
+        else:
+            location = mono.estimate(boxes[i])
+        locations.append(location)
+    
+    indices = []
+    for i in range(len(locations)):
+        if locations[i] is None:
+            indices.append(i)
+        elif locations[i][0] < float('inf') and locations[i][1] < float('inf'):
+            indices.append(i)
+    labels, scores, boxes = np.array(labels)[indices], np.array(scores)[indices], boxes[indices]
+    locations = [locations[i] for i in indices]
+    
     cur_frame1 = cur_frame1[:, :, ::-1].copy() # to BGR
     cur_frame2 = cur_frame2[:, :, ::-1].copy() # to BGR
+    distances = [(l[0] ** 2 + l[1] ** 2) ** 0.5 if l is not None else float('inf') for l in locations]
     for i in reversed(np.argsort(distances)):
         cur_frame1 = draw_predictions(
             cur_frame1, str(labels[i]), float(scores[i]), boxes[i], location=locations[i]
