@@ -5,6 +5,7 @@ import math
 import cv2
 from math import sin, cos
 
+
 class MonoEstimator():
     def __init__(self, file_path, print_info=True):
         fs = cv2.FileStorage(file_path, cv2.FileStorage_READ)
@@ -25,19 +26,15 @@ class MonoEstimator():
             print('  DepressionAngle: %.2fdegree' % self.depression)
             print()
     
-    def get_location(self, u, v):
-        theta_0 = self.depression * np.pi / 180
-        theta_lat = np.arctan2(u - self.u0, self.fx)
-        theta_ver = theta_0 + np.arctan2(v - self.v0, self.fy)
-        if theta_ver < 1e-5:
-            return (float('inf'), float('inf'))
-        else:
-            range_lon = self.height / np.tan(theta_ver)
-            range_lat = range_lon * np.tan(theta_lat)
-            return (range_lat, range_lon)
-    
-    def estimate(self, box):
-        box = box.reshape(-1)
-        u, v = (box[0] + box[2]) / 2, box[3]
-        return self.get_location(u, v)
-    
+    def estimate(self, box, height):
+        x1, y1, x2, y2 = box.squeeze()
+        u = (x1 + x2) / 2
+        v = (y1 + y2) / 2
+
+        if abs(y2 - y1) == 0:
+            return float('inf'), float('inf')
+
+        z = self.fy * height / abs(y2 - y1)
+        x = z * (u - self.u0) / self.fx
+        y = z * (v - self.v0) / self.fy
+        return x, z

@@ -28,6 +28,7 @@ from utils.datasets import letterbox
 from utils.general import check_img_size, non_max_suppression, scale_coords
 from utils.torch_utils import select_device
 
+
 def draw_predictions(img, label, score, box, color=(156, 39, 176), location=None):
     f_face = cv2.FONT_HERSHEY_SIMPLEX
     f_scale = 0.5
@@ -48,7 +49,8 @@ def draw_predictions(img, label, score, box, color=(156, 39, 176), location=None
         cv2.putText(img, text, (u1, v1 - 4), f_face, f_scale, (255, 255, 255), f_thickness, cv2.LINE_AA)
     
     if location is not None:
-        text = '(%.1fm, %.1fm)' % (location[0], location[1])
+        # text = '(%.1fm, %.1fm)' % (location[0], location[1])
+        text = '(%.1fm)' % (location[0] ** 2 + location[1] ** 2) ** 0.5
         text_w, text_h = cv2.getTextSize(text, f_face, f_scale, f_thickness)[0]
         text_h += 6
         if v2 + text_h > h:
@@ -59,6 +61,7 @@ def draw_predictions(img, label, score, box, color=(156, 39, 176), location=None
             cv2.putText(img, text, (u1, v2 + text_h - 4), f_face, f_scale, (255, 255, 255), f_thickness, cv2.LINE_AA)
     
     return img
+
 
 class Yolov5Detector():
     def __init__(self, weights=''):
@@ -121,6 +124,7 @@ class Yolov5Detector():
             return labels, scores, boxes
         else:
             return [], [], np.array([]).reshape(-1, 4)
+
 
 if __name__ == '__main__':
     file_name = '1.png'

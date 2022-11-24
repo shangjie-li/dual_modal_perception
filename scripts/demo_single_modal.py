@@ -25,6 +25,7 @@ from mono_estimator import MonoEstimator
 from functions import get_stamp, publish_image
 from functions import display, print_info
 
+
 parser = argparse.ArgumentParser(
     description='Demo script for dual modal peception')
 parser.add_argument('--print', action='store_true',
@@ -45,7 +46,9 @@ parser.add_argument('--display', action='store_true',
     help='Whether to display and save all videos.')
 args = parser.parse_args()
 
+
 image_lock = threading.Lock()
+
 
 def image_callback(image):
     global image_stamp, image_frame
@@ -53,6 +56,7 @@ def image_callback(image):
     image_stamp = get_stamp(image.header)
     image_frame = np.frombuffer(image.data, dtype=np.uint8).reshape(image.height, image.width, -1)
     image_lock.release()
+
 
 def timer_callback(event):
     global image_stamp, image_frame
@@ -72,24 +76,21 @@ def timer_callback(event):
         labels, scores, boxes = detector.run(
             cur_frame, conf_thres=0.30, classes=[0, 1, 2, 3, 4, 5, 6]
         ) # pedestrian, cyclist, car, bus, truck, traffic_light, traffic_sign
+
+    heights = [label_to_height[label] for label in labels]
     labels_temp = labels.copy()
     labels = []
     for i in labels_temp:
         labels.append(i if i not in ['pedestrian', 'cyclist'] else 'person')
-    
+
     locations = []
     for i in range(boxes.shape[0]):
-        if labels[i] in ['traffic_light', 'traffic_sign']:
-            location = None
-        else:
-            location = mono.estimate(boxes[i])
+        location = mono.estimate(boxes[i], heights[i])
         locations.append(location)
-    
+
     indices = []
     for i in range(len(locations)):
-        if locations[i] is None:
-            indices.append(i)
-        elif locations[i][0] < float('inf') and locations[i][1] < float('inf'):
+        if locations[i][0] < float('inf') and locations[i][1] < float('inf'):
             indices.append(i)
     labels, scores, boxes = np.array(labels)[indices], np.array(scores)[indices], boxes[indices]
     locations = [locations[i] for i in indices]
@@ -112,6 +113,7 @@ def timer_callback(event):
     if args.print:
         print_info(frame, cur_stamp, delay, labels, scores, boxes, locations, file_name)
 
+
 if __name__ == '__main__':
     # 初始化节点
     rospy.init_node("single_modal_perception", anonymous=True, disable_signals=True)
@@ -128,6 +130,16 @@ if __name__ == '__main__':
     if not os.path.exists(args.calib_file):
         raise ValueError("%s Not Found" % (args.calib_file))
     mono = MonoEstimator(args.calib_file, print_info=args.print)
+    label_to_height = {
+        'person': 2.0,
+        'pedestrian': 2.0,
+        'cyclist': 2.0,
+        'car': 2.0,
+        'bus': 3.5,
+        'truck': 3.5,
+        'traffic_light': 0.5,
+        'traffic_sign': 0.5,
+    }
     
     # 初始化Yolov5Detector
     if args.indoor:

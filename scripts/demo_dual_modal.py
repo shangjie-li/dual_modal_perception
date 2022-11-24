@@ -26,6 +26,7 @@ from functions import get_stamp, publish_image
 from functions import display, print_info
 from functions import simplified_nms
 
+
 parser = argparse.ArgumentParser(
     description='Demo script for dual modal peception')
 parser.add_argument('--print', action='store_true',
@@ -48,8 +49,10 @@ parser.add_argument('--display', action='store_true',
     help='Whether to display and save all videos.')
 args = parser.parse_args()
 
+
 image1_lock = threading.Lock()
 image2_lock = threading.Lock()
+
 
 def image1_callback(image):
     global image1_stamp, image1_frame
@@ -58,12 +61,14 @@ def image1_callback(image):
     image1_frame = np.frombuffer(image.data, dtype=np.uint8).reshape(image.height, image.width, -1)
     image1_lock.release()
 
+
 def image2_callback(image):
     global image2_stamp, image2_frame
     image2_lock.acquire()
     image2_stamp = get_stamp(image.header)
     image2_frame = np.frombuffer(image.data, dtype=np.uint8).reshape(image.height, image.width, -1)
     image2_lock.release()
+
 
 def timer_callback(event):
     global image1_stamp, image1_frame
@@ -115,6 +120,8 @@ def timer_callback(event):
                 boxes = np.array([]).reshape(-1, 4)
         else:
             raise ValueError("The modality must be 'RGB', 'T' or 'RGBT'.")
+
+    heights = [label_to_height[label] for label in labels]
     labels_temp = labels.copy()
     labels = []
     for i in labels_temp:
@@ -122,17 +129,12 @@ def timer_callback(event):
     
     locations = []
     for i in range(boxes.shape[0]):
-        if labels[i] in ['traffic_light', 'traffic_sign']:
-            location = None
-        else:
-            location = mono.estimate(boxes[i])
+        location = mono.estimate(boxes[i], heights[i])
         locations.append(location)
     
     indices = []
     for i in range(len(locations)):
-        if locations[i] is None:
-            indices.append(i)
-        elif locations[i][0] < float('inf') and locations[i][1] < float('inf'):
+        if locations[i][0] < float('inf') and locations[i][1] < float('inf'):
             indices.append(i)
     labels, scores, boxes = np.array(labels)[indices], np.array(scores)[indices], boxes[indices]
     locations = [locations[i] for i in indices]
@@ -160,6 +162,7 @@ def timer_callback(event):
     if args.print:
         print_info(frame, cur_stamp1, delay, labels, scores, boxes, locations, file_name)
 
+
 if __name__ == '__main__':
     # 初始化节点
     rospy.init_node("dual_modal_perception", anonymous=True, disable_signals=True)
@@ -176,6 +179,16 @@ if __name__ == '__main__':
     if not os.path.exists(args.calib_file):
         raise ValueError("%s Not Found" % (args.calib_file))
     mono = MonoEstimator(args.calib_file, print_info=args.print)
+    label_to_height = {
+        'person': 2.0,
+        'pedestrian': 2.0,
+        'cyclist': 2.0,
+        'car': 2.0,
+        'bus': 3.5,
+        'truck': 3.5,
+        'traffic_light': 0.5,
+        'traffic_sign': 0.5,
+    }
     
     # 初始化Yolov5Detector
     if args.indoor:

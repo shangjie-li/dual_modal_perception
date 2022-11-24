@@ -4,8 +4,10 @@ import numpy as np
 from std_msgs.msg import Header
 from sensor_msgs.msg import Image
 
+
 def get_stamp(header):
     return header.stamp.secs + 0.000000001 * header.stamp.nsecs
+
 
 def publish_image(pub, data, frame_id='base_link'):
     assert len(data.shape) == 3, 'len(data.shape) must be equal to 3.'
@@ -22,6 +24,7 @@ def publish_image(pub, data, frame_id='base_link'):
     
     pub.publish(msg)
 
+
 def display(img, v_writer, win_name='result'):
     cv2.namedWindow(win_name, cv2.WINDOW_NORMAL)
     cv2.imshow(win_name, img)
@@ -32,6 +35,7 @@ def display(img, v_writer, win_name='result'):
         return False
     else:
         return True
+
 
 def print_info(frame, stamp, delay, labels, scores, boxes, locs, file_name='result.txt'):
     time_str = 'frame:%d  stamp:%.3f  delay:%.3f' % (frame, stamp, delay)
@@ -50,6 +54,7 @@ def print_info(frame, stamp, delay, labels, scores, boxes, locs, file_name='resu
     print()
     with open(file_name, 'a') as fob:
         fob.write('\n')
+
 
 def simplified_nms(boxes, scores, iou_thres=0.25):
     '''
