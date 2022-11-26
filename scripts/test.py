@@ -3,6 +3,11 @@ import sys
 cwd = os.getcwd().rstrip('scripts')
 sys.path.append(os.path.join(cwd, 'modules/yolov5-test'))
 
+import rospy
+import numpy as np
+from std_msgs.msg import Header
+from sensor_msgs.msg import Image
+
 try:
     import cv2
 except ImportError:
@@ -25,8 +30,9 @@ from utils.metrics import ap_per_class, ConfusionMatrix
 from utils.plots import plot_images, output_to_target
 from utils.torch_utils import select_device, time_synchronized
 from utils.datasets import torch_distributed_zero_first, InfiniteDataLoader
-from utils.datasets import Dataset, img_formats, help_url, img2label_paths
-from utils.datasets import Image, exif_size, segments2boxes, get_hash, load_image, letterbox, xywhn2xyxy, xyxy2xywh
+from utils.datasets import Dataset, img_formats, help_url
+from utils.datasets import Image, exif_size, segments2boxes, get_hash, letterbox, xywhn2xyxy, xyxy2xywh
+from functions import simplified_nms
 
 
 def create_dataloader(path, imgsz, batch_size, stride, pad=0.5, rect=True,
@@ -51,6 +57,37 @@ def create_dataloader(path, imgsz, batch_size, stride, pad=0.5, rect=True,
                         pin_memory=True,
                         collate_fn=LoadImagesAndLabels.collate_fn)
     return dataloader, dataset
+
+
+def convert_img_path(img_path):
+    sa = os.sep + 'images' + os.sep
+    sb1 = os.sep + 'visible' + os.sep
+    sb2 = os.sep + 'lwir' + os.sep
+    return img_path.replace(sa, sb1, 1), img_path.replace(sa, sb2, 1)
+
+
+def img2label_paths(img_paths):
+    # Define label paths as a function of image paths
+    sa = os.sep + 'images' + os.sep
+    sb = os.sep + 'annotations_yolo' + os.sep + 'annotations' + os.sep
+    return ['txt'.join(x.replace(sa, sb, 1).rsplit(x.split('.')[-1], 1)) for x in img_paths]
+
+
+def load_dual_images(self, index):
+    # loads 2 images from dataset, returns img1, img2, original hw, resized hw
+    path = self.img_files[index]
+    path1, path2 = convert_img_path(path)
+    img1 = cv2.imread(path1)  # BGR
+    img2 = cv2.imread(path2)  # BGR
+    assert img1 is not None, 'Image Not Found ' + path1
+    assert img2 is not None, 'Image Not Found ' + path2
+    h0, w0 = img1.shape[:2]  # orig hw
+    r = self.img_size / max(h0, w0)  # resize image to img_size
+    if r != 1:  # always resize down, only resize up if training with augmentation
+        interp = cv2.INTER_AREA if r < 1 else cv2.INTER_LINEAR
+        img1 = cv2.resize(img1, (int(w0 * r), int(h0 * r)), interpolation=interp)
+        img2 = cv2.resize(img2, (int(w0 * r), int(h0 * r)), interpolation=interp)
+    return img1, img2, (h0, w0), img1.shape[:2]  # img, hw_original, hw_resized
 
 
 class LoadImagesAndLabels(Dataset):  # for training/testing
@@ -121,8 +158,6 @@ class LoadImagesAndLabels(Dataset):  # for training/testing
 
             self.batch_shapes = np.ceil(np.array(shapes) * img_size / stride + pad).astype(np.int) * stride
 
-        self.imgs = [None] * n
-
     def cache_labels(self, prefix=''):
         # Cache dataset labels, check images and read shapes
         x = {}  # dict
@@ -131,7 +166,8 @@ class LoadImagesAndLabels(Dataset):  # for training/testing
         for i, (im_file, lb_file) in enumerate(pbar):
             try:
                 # verify images
-                im = Image.open(im_file)
+                im_file1, im_file2 = convert_img_path(im_file)
+                im = Image.open(im_file1)
                 im.verify()  # PIL verify
                 shape = exif_size(im)  # image size (width, height)
                 segments = []  # instance segments
@@ -183,11 +219,12 @@ class LoadImagesAndLabels(Dataset):  # for training/testing
         index = self.indices[index]  # linear, shuffled, or image_weights
 
         # Load image
-        img, (h0, w0), (h, w) = load_image(self, index)
+        img1, img2, (h0, w0), (h, w) = load_dual_images(self, index)
 
         # Letterbox
         shape = self.batch_shapes[self.batch[index]] if self.rect else self.img_size  # final letterboxed shape
-        img, ratio, pad = letterbox(img, shape, auto=False, scaleup=False)
+        img1, ratio, pad = letterbox(img1, shape, auto=False, scaleup=False)
+        img2, ratio, pad = letterbox(img2, shape, auto=False, scaleup=False)
         shapes = (h0, w0), ((h / h0, w / w0), pad)  # for COCO mAP rescaling
 
         labels = self.labels[index].copy()
@@ -197,42 +234,31 @@ class LoadImagesAndLabels(Dataset):  # for training/testing
         nL = len(labels)  # number of labels
         if nL:
             labels[:, 1:5] = xyxy2xywh(labels[:, 1:5])  # convert xyxy to xywh
-            labels[:, [2, 4]] /= img.shape[0]  # normalized height 0-1
-            labels[:, [1, 3]] /= img.shape[1]  # normalized width 0-1
+            labels[:, [2, 4]] /= img1.shape[0]  # normalized height 0-1
+            labels[:, [1, 3]] /= img1.shape[1]  # normalized width 0-1
 
         labels_out = torch.zeros((nL, 6))
         if nL:
             labels_out[:, 1:] = torch.from_numpy(labels)
 
         # Convert
-        img = img[:, :, ::-1].transpose(2, 0, 1)  # BGR to RGB, to 3x416x416
-        img = np.ascontiguousarray(img)
+        img1 = img1[:, :, ::-1].transpose(2, 0, 1)  # BGR to RGB, to 3x416x416
+        img2 = img2[:, :, ::-1].transpose(2, 0, 1)  # BGR to RGB, to 3x416x416
+        img1 = np.ascontiguousarray(img1)
+        img2 = np.ascontiguousarray(img2)
 
-        return torch.from_numpy(img), labels_out, self.img_files[index], shapes
+        return torch.from_numpy(img1), torch.from_numpy(img2), labels_out, self.img_files[index], shapes
 
     @staticmethod
     def collate_fn(batch):
-        img, label, path, shapes = zip(*batch)  # transposed
+        img1, img2, label, path, shapes = zip(*batch)  # transposed
         for i, l in enumerate(label):
             l[:, 0] = i  # add target image index for build_targets()
-        return torch.stack(img, 0), torch.cat(label, 0), path, shapes
+        return torch.stack(img1, 0), torch.stack(img2, 0), torch.cat(label, 0), path, shapes
 
 
-def test(batch_size=32,
-         imgsz=640,
-         conf_thres=0.001,
-         iou_thres=0.6,  # for NMS
-         plots=True,
-         half_precision=True,
-         ):
-    # weights = 'weights/seumm_visible/yolov5s_100ep_pretrained.pt'
-    # data_path = '/home/lishangjie/data/SEUMM/seumm_visible_15200/annotations_yolo/sets/val.txt'
-
-    weights = 'weights/seumm_lwir/yolov5s_100ep_pretrained.pt'
-    data_path = '/home/lishangjie/data/SEUMM/seumm_lwir_15200/annotations_yolo/sets/val.txt'
-
-    nc = 7  # number of classes
-
+def test(weights1, weights2, data_path, nc, batch_size=32, imgsz=640, conf_thres=0.001, iou_thres=0.6,
+         plots=True, half_precision=True):
     set_logging()
     device = select_device(opt.device, batch_size=batch_size)
 
@@ -241,54 +267,75 @@ def test(batch_size=32,
     save_dir.mkdir(parents=True, exist_ok=True)  # make dir
 
     # Load model
-    weights = os.path.join(cwd, 'modules/yolov5-test', weights)
-    model = attempt_load(weights, map_location=device)  # load FP32 model
-    gs = max(int(model.stride.max()), 32)  # grid size (max stride)
+    weights1 = os.path.join(cwd, 'modules/yolov5-test', weights1)
+    weights2 = os.path.join(cwd, 'modules/yolov5-test', weights2)
+    model1 = attempt_load(weights1, map_location=device)  # load FP32 model
+    model2 = attempt_load(weights2, map_location=device)  # load FP32 model
+    gs = max(int(model1.stride.max()), 32)  # grid size (max stride)
     imgsz = check_img_size(imgsz, s=gs)  # check img_size
 
     # Half
     half = device.type != 'cpu' and half_precision  # half precision only supported on CUDA
     if half:
-        model.half()
+        model1.half()
+        model2.half()
 
     # Configure
-    model.eval()
+    model1.eval()
+    model2.eval()
     iouv = torch.linspace(0.5, 0.95, 10).to(device)  # iou vector for mAP@0.5:0.95
     niou = iouv.numel()
 
     # Dataloader
     if device.type != 'cpu':
-        model(torch.zeros(1, 3, imgsz, imgsz).to(device).type_as(next(model.parameters())))  # run once
+        model1(torch.zeros(1, 3, imgsz, imgsz).to(device).type_as(next(model1.parameters())))  # run once
+        model2(torch.zeros(1, 3, imgsz, imgsz).to(device).type_as(next(model2.parameters())))  # run once
     task = opt.task  # path to train/val/test images
     dataloader = create_dataloader(data_path, imgsz, batch_size, gs, pad=0.5, rect=True,
                                    prefix=colorstr(f'{task}: '))[0]
 
     seen = 0
     confusion_matrix = ConfusionMatrix(nc=nc)
-    names = {k: v for k, v in enumerate(model.names if hasattr(model, 'names') else model.module.names)}
+    names = {k: v for k, v in enumerate(model1.names if hasattr(model1, 'names') else model1.module.names)}
     s = ('%20s' + '%12s' * 6) % ('Class', 'Images', 'Labels', 'P', 'R', 'mAP@.5', 'mAP@.5:.95')
     p, r, f1, mp, mr, map50, map, t0, t1 = 0., 0., 0., 0., 0., 0., 0., 0., 0.
     loss = torch.zeros(3, device=device)
     jdict, stats, ap, ap_class, wandb_images = [], [], [], [], []
-    for batch_i, (img, targets, paths, shapes) in enumerate(tqdm(dataloader, desc=s)):
-        img = img.to(device, non_blocking=True)
-        img = img.half() if half else img.float()  # uint8 to fp16/32
-        img /= 255.0  # 0 - 255 to 0.0 - 1.0
+    for batch_i, (img1, img2, targets, paths, shapes) in enumerate(tqdm(dataloader, desc=s)):
+        img1 = img1.to(device, non_blocking=True)
+        img1 = img1.half() if half else img1.float()  # uint8 to fp16/32
+        img1 /= 255.0  # 0 - 255 to 0.0 - 1.0
+
+        img2 = img2.to(device, non_blocking=True)
+        img2 = img2.half() if half else img2.float()  # uint8 to fp16/32
+        img2 /= 255.0  # 0 - 255 to 0.0 - 1.0
+
         targets = targets.to(device)
-        nb, _, height, width = img.shape  # batch size, channels, height, width
+        nb, _, height, width = img1.shape  # batch size, channels, height, width
 
         with torch.no_grad():
             # Run model
             t = time_synchronized()
-            out, train_out = model(img, augment=False)  # inference and training outputs
+            out1, _ = model1(img1, augment=False)  # inference and training outputs
+            out2, _ = model2(img2, augment=False)  # inference and training outputs
             t0 += time_synchronized() - t
 
             # Run NMS
             targets[:, 2:] *= torch.Tensor([width, height, width, height]).to(device)  # to pixels
             lb = []  # for autolabelling
             t = time_synchronized()
-            out = non_max_suppression(out, conf_thres=conf_thres, iou_thres=iou_thres, labels=lb, multi_label=True)
+            out1 = non_max_suppression(out1, conf_thres=conf_thres, iou_thres=iou_thres, labels=lb, multi_label=True)
+            out2 = non_max_suppression(out2, conf_thres=conf_thres, iou_thres=iou_thres, labels=lb, multi_label=True)
             t1 += time_synchronized() - t
+
+            # Fuse
+            out = []
+            for i in range(nb):
+                pp = torch.cat([out1[i], out2[i]], 0)
+                boxes = pp[:, 0:4].cpu().numpy()
+                scores = pp[:, 4].cpu().numpy().tolist()
+                indices = simplified_nms(boxes, scores)
+                out.append(pp[indices])
 
         # Statistics per image
         for si, pred in enumerate(out):
@@ -305,7 +352,7 @@ def test(batch_size=32,
 
             # Predictions
             predn = pred.clone()
-            scale_coords(img[si].shape[1:], predn[:, :4], shapes[si][0], shapes[si][1])  # native-space pred
+            scale_coords(img1[si].shape[1:], predn[:, :4], shapes[si][0], shapes[si][1])  # native-space pred
 
             # Assign all predictions as incorrect
             correct = torch.zeros(pred.shape[0], niou, dtype=torch.bool, device=device)
@@ -315,7 +362,7 @@ def test(batch_size=32,
 
                 # target boxes
                 tbox = xywh2xyxy(labels[:, 1:5])
-                scale_coords(img[si].shape[1:], tbox, shapes[si][0], shapes[si][1])  # native-space labels
+                scale_coords(img1[si].shape[1:], tbox, shapes[si][0], shapes[si][1])  # native-space labels
                 if plots:
                     confusion_matrix.process_batch(predn, torch.cat((labels[:, 0:1], tbox), 1))
 
@@ -346,9 +393,9 @@ def test(batch_size=32,
         # Plot images
         if plots and batch_i < 3:
             f = save_dir / f'test_batch{batch_i}_labels.jpg'  # labels
-            Thread(target=plot_images, args=(img, targets, paths, f, names), daemon=True).start()
+            Thread(target=plot_images, args=(img1, targets, paths, f, names), daemon=True).start()
             f = save_dir / f'test_batch{batch_i}_pred.jpg'  # predictions
-            Thread(target=plot_images, args=(img, output_to_target(out), paths, f, names), daemon=True).start()
+            Thread(target=plot_images, args=(img1, output_to_target(out), paths, f, names), daemon=True).start()
 
     # Compute statistics
     stats = [np.concatenate(x, 0) for x in zip(*stats)]  # to numpy
@@ -378,7 +425,6 @@ def test(batch_size=32,
         confusion_matrix.plot(save_dir=save_dir, names=list(names.values()))
 
     # Return results
-    model.float()  # for training
     print(f"Results saved to {save_dir}")
     maps = np.zeros(nc) + map
     for i, c in enumerate(ap_class):
@@ -388,6 +434,11 @@ def test(batch_size=32,
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(prog='test.py')
+    parser.add_argument('--weights1', type=str, default='weights/seumm_visible/yolov5s_100ep_pretrained.pt', help='model.pt path')
+    parser.add_argument('--weights2', type=str, default='weights/seumm_lwir/yolov5s_100ep_pretrained.pt', help='model.pt path')
+    parser.add_argument('--data_path', type=str, default='/home/lishangjie/data/SEUMM/seumm_dual_15200/annotations_yolo/sets/val.txt', help='data path')
+    parser.add_argument('--nc', type=int, default=7, help='number of classes')
+
     parser.add_argument('--batch-size', type=int, default=16, help='size of each image batch')
     parser.add_argument('--img-size', type=int, default=640, help='inference size (pixels)')
     parser.add_argument('--conf-thres', type=float, default=0.001, help='object confidence threshold')
@@ -400,7 +451,8 @@ if __name__ == '__main__':
     print(opt)
 
     if opt.task in ('train', 'val', 'test'):  # run normally
-        test(opt.batch_size,
+        test(opt.weights1, opt.weights2, opt.data_path, opt.nc,
+             opt.batch_size,
              opt.img_size,
              opt.conf_thres,
              opt.iou_thres,
